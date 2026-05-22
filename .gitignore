@@ -3,3 +3,4 @@ dist/
 *.user.js
 *.log
 .DS_Store
+.sisyphus/
