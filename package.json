@@ -1,0 +1,20 @@
+{
+  "name": "browser-ai-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "跨浏览器扩展 + Userscript，在 AI 网站上运行 Agent 操作",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "build:extension": "npm run build && mkdir -p dist-extension && cp dist/browser-ai-agent.user.js manifest.json dist-extension/",
+    "preview": "vite preview"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/chrome": "^0.0.300",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vite-plugin-monkey": "^5.0.0"
+  }
+}

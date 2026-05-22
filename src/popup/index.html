@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Browser AI Agent</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans SC',sans-serif;font-size:13px;color:#1a1a2e;background:#fff;width:400px;max-height:500px;overflow:hidden}
+.header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid #e2e8f0;background:#f8fafc;font-weight:600;font-size:14px}
+.body{padding:12px 14px;overflow-y:auto;max-height:440px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%}
+.dot.idle{background:#94a3b8}
+.dot.running{background:#22c55e}
+.dot.completed{background:#3b82f6}
+.dot.error{background:#ef4444}
+.row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.project-info{flex:1;min-width:0;padding:5px 8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.project-info.active{border-color:#6366f1;color:#1a1a2e}
+.project-info .lbl{color:#94a3b8}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:6px 12px;border:none;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;transition:all .12s;white-space:nowrap}
+.btn:active{transform:scale(.96)}
+.btn-primary{background:#6366f1;color:#fff}
+.btn-primary:hover{background:#4f46e5}
+.btn-success{background:#22c55e;color:#fff}
+.btn-success:hover{background:#16a34a}
+.btn-danger{background:#ef4444;color:#fff}
+.btn-danger:hover{background:#dc2626}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.tree-container{margin-bottom:10px}
+.tree-toggle{display:flex;align-items:center;gap:4px;padding:4px 0;font-size:11px;color:#6366f1;cursor:pointer;user-select:none}
+.tree{max-height:150px;overflow-y:auto;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:4px 0;margin-top:4px;display:none}
+.tree.show{display:block}
+.fitem{display:flex;align-items:center;gap:4px;padding:2px 8px;font-size:11px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fitem:hover{background:#eef2ff}
+.fitem.dir{font-weight:500;color:#6366f1}
+.fitem .in{flex-shrink:0;width:16px}
+.log-section{margin-bottom:8px}
+.log-title{font-size:11px;font-weight:600;color:#64748b;margin-bottom:4px}
+.log-box{max-height:120px;overflow-y:auto;background:#0f172a;border-radius:6px;padding:6px 8px;font-family:'SF Mono','Fira Code','Menlo',monospace;font-size:10px;line-height:1.5}
+.log-entry{display:flex;gap:6px;word-break:break-all}
+.log-entry+.log-entry{margin-top:2px}
+.log-time{color:#475569;flex-shrink:0;font-size:8px}
+.log-msg{flex:1}
+.log-msg.info{color:#7dd3fc}
+.log-msg.success{color:#86efac}
+.log-msg.error{color:#fca5a5}
+.log-msg.warn{color:#fde68a}
+.log-empty{color:#475569;text-align:center;padding:8px 0;font-size:11px}
+.help{font-size:10px;color:#94a3b8;margin-top:4px;line-height:1.4}
+.help code{background:#f1f5f9;padding:1px 4px;border-radius:3px;font-family:'SF Mono','Fira Code',monospace;font-size:9px;color:#6366f1}
+.input-row{display:flex;gap:6px;margin-top:6px}
+.input-field{flex:1;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;resize:none;min-height:32px;max-height:64px;outline:none;color:#1a1a2e;font-family:inherit}
+.input-field:focus{border-color:#6366f1}
+</style>
+</head>
+<body>
+<div class="header">
+  <span class="dot idle" id="statusDot"></span>
+  <span>🤖 Browser AI Agent</span>
+</div>
+<div class="body">
+  <div class="row">
+    <button class="btn btn-primary" id="selectBtn">📁 选择项目</button>
+    <div class="project-info" id="projectInfo"><span class="lbl">未选择项目</span></div>
+  </div>
+
+  <div class="tree-container">
+    <div class="tree-toggle" id="treeToggle">📂 查看项目文件</div>
+    <div class="tree" id="fileTree"></div>
+  </div>
+
+  <div class="log-section">
+    <div class="log-title">操作日志</div>
+    <div class="log-box" id="logBox"><div class="log-empty">还未开始操作</div></div>
+  </div>
+
+  <div class="input-row">
+    <textarea class="input-field" id="inputField" placeholder="list / read 路径 / write 路径: 内容" rows="1"></textarea>
+    <button class="btn btn-success" id="execBtn">▶ 执行</button>
+  </div>
+  <div class="help">
+    支持：<code>list</code> · <code>read src/index.ts</code> · <code>write src/test.ts: 内容</code>
+  </div>
+</div>
+
+<script src="./popup.ts" type="module"></script>
+</body>
+</html>

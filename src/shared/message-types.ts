@@ -1,0 +1,13 @@
+export type AgentMessageType =
+  | 'READ_FILE'
+  | 'WRITE_FILE'
+  | 'LIST_FILES'
+  | 'DELETE_FILE'
+  | 'CREATE_DIRECTORY'
+  | 'GET_PROJECT_INFO'
+  | 'AGENT_START'
+  | 'AGENT_STOP'
+  | 'AGENT_STATUS'
+  | 'SELECT_PROJECT'
+  | 'EXECUTE_TOOL'
+  | 'UPDATE_SETTINGS'
