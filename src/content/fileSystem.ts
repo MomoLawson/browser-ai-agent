@@ -170,6 +170,97 @@ export async function editFile(
 }
 
 /**
+ * 按文件名搜索（支持 glob 模式匹配）
+ */
+export async function searchFiles(
+  dirHandle: FileSystemDirectoryHandle,
+  pattern: string,
+): Promise<string[]> {
+  const results: string[] = []
+  const regex = globToRegex(pattern)
+  await searchRecursive(dirHandle, '', regex, results)
+  return results
+}
+
+async function searchRecursive(
+  dirHandle: FileSystemDirectoryHandle,
+  prefix: string,
+  regex: RegExp,
+  results: string[],
+): Promise<void> {
+  for await (const entry of dirHandle.values()) {
+    const fullPath = prefix ? `${prefix}/${entry.name}` : entry.name
+    if (entry.kind === 'file' && regex.test(entry.name)) {
+      results.push(fullPath)
+    }
+    if (entry.kind === 'directory') {
+      await searchRecursive(entry as FileSystemDirectoryHandle, fullPath, regex, results)
+    }
+  }
+}
+
+function globToRegex(pattern: string): RegExp {
+  let r = pattern
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*/g, '.*')
+    .replace(/\?/g, '.')
+  return new RegExp(`^${r}$`, 'i')
+}
+
+/**
+ * 在文件中搜索内容（grep）
+ */
+export async function grepFiles(
+  dirHandle: FileSystemDirectoryHandle,
+  pattern: string,
+  maxResults = 20,
+): Promise<string> {
+  const results: string[] = []
+  const regex = buildGrepRegex(pattern)
+  await grepRecursive(dirHandle, '', regex, results, maxResults)
+  if (results.length === 0) return `未找到匹配 "${pattern}" 的内容。`
+  return results.join('\n') + (results.length >= maxResults ? `\n(结果已截断，最多 ${maxResults} 条)` : '')
+}
+
+async function grepRecursive(
+  dirHandle: FileSystemDirectoryHandle,
+  prefix: string,
+  regex: RegExp,
+  results: string[],
+  max: number,
+): Promise<void> {
+  if (results.length >= max) return
+  for await (const entry of dirHandle.values()) {
+    if (results.length >= max) return
+    if (entry.kind === 'file') {
+      const fullPath = prefix ? `${prefix}/${entry.name}` : entry.name
+      try {
+        const file = await (entry as FileSystemFileHandle).getFile()
+        const text = await file.text()
+        const lines = text.split('\n')
+        for (let i = 0; i < lines.length && results.length < max; i++) {
+          if (regex.test(lines[i])) {
+            results.push(`${fullPath}:${i + 1}: ${lines[i].trim()}`)
+          }
+        }
+      } catch { /* skip unreadable files */ }
+    } else if (entry.kind === 'directory') {
+      await grepRecursive(entry as FileSystemDirectoryHandle, fullPath, regex, results, max)
+    }
+  }
+}
+
+function buildGrepRegex(pattern: string): RegExp {
+  // 如果 pattern 已经像正则（包含特殊字符），尝试直接使用
+  if (/[/^$.|*+?()]/.test(pattern)) {
+    try { return new RegExp(pattern, 'i') } catch {}
+  }
+  // 否则作为普通字符串搜索
+  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(escaped, 'i')
+}
+
+/**
  * 检查文件是否已存在
  */
 export async function fileExists(

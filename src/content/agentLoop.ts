@@ -18,6 +18,8 @@ import {
   editFile,
   fileExists,
   verifyPermission,
+  searchFiles,
+  grepFiles,
 } from './fileSystem'
 
 // ============================================================
@@ -156,7 +158,7 @@ export class AgentLoop {
 
       try {
         await this.executeTool(tool)
-        if (tool.type !== 'search_code') hasOutput = true
+        hasOutput = true
       } catch (err) {
         const msg = (err as Error).message
         this.options.onLog('error', `❌ 操作失败: ${msg}`)
@@ -377,10 +379,24 @@ export class AgentLoop {
         }
 
         case 'search_code': {
-          // 搜索功能当前用 list + grep 模拟
-          this.options.onLog('info', `🔍 搜索模式: ${tool.pattern}`)
-          this.options.injectText(`🔍 搜索功能需要在项目中实现 grep 工具`)
-          this.options.onLog('warn', `搜索功能尚未完整实现`)
+          if (!tool.pattern) throw new Error('未指定搜索模式')
+          // 判断是文件名搜索还是内容搜索
+          if (tool.pattern.includes('*') || tool.pattern.includes('?') || /\.\w+$/.test(tool.pattern)) {
+            // glob 模式 → 文件名搜索
+            this.options.onLog('info', `🔍 搜索文件: ${tool.pattern}`)
+            const files = await searchFiles(this.dirHandle, tool.pattern)
+            const result = files.length > 0
+              ? `找到 ${files.length} 个匹配文件:\n${files.map(f=>`  ${f}`).join('\n')}`
+              : `未找到匹配 "${tool.pattern}" 的文件。`
+            this.options.injectText(result)
+            this.options.onLog('success', `搜索完成: ${files.length} 个文件`)
+          } else {
+            // 内容搜索 (grep)
+            this.options.onLog('info', `🔎 grep: ${tool.pattern}`)
+            const result = await grepFiles(this.dirHandle, tool.pattern)
+            this.options.injectText(result)
+            this.options.onLog('success', 'grep 完成')
+          }
           break
         }
       }

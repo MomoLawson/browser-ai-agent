@@ -100,6 +100,8 @@ function buildPrompt(name: string): string {
     '文件操作工具：',
     '',
     '[list]                  列出项目文件',
+    '[search: *.ts]          搜索文件名 (glob)',
+    '[search: 关键词]        搜索文件内容 (grep)',
     '[read: 文件路径]         读取文件内容',
     '[write: 文件路径]        创建新文件或覆盖已有文件',
     '  文件的完整新内容',
