@@ -1,14 +1,14 @@
-# Browser AI Agent / 浏览器 AI Agent
+# Browser AI Agent
+
+> [简体中文](README.zh-Hans.md)
 
 Turn any AI chat website into an AI programming agent. Select a local project folder, and let the AI read and modify your files — just like opencode or Claude Code, but in the browser.
 
-把任意 AI 聊天网站变成 AI 编程助手。选择本地项目文件夹，AI 就能直接读取和修改你的文件——类似 opencode 或 Claude Code，但在浏览器里运行。
-
 ---
 
-## Quick Start / 快速开始
+## Quick Start
 
-### Userscript (recommended / 推荐)
+### Userscript (recommended)
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/) or [Violentmonkey](https://violentmonkey.github.io/)
 2. Build: `npm run build`
@@ -22,7 +22,7 @@ npm run build:extension
 # Load dist-extension/ as an unpacked extension in Chrome
 ```
 
-## Supported Platforms / 支持的平台
+## Supported Platforms
 
 | Platform | Domain | Status |
 |----------|--------|--------|
@@ -34,7 +34,7 @@ npm run build:extension
 | 豆包 | doubao.com | ✅ |
 | 元宝 | yuanbao.tencent.com | ✅ |
 
-## How It Works / 工作原理
+## How It Works
 
 ```
 1. Open any AI chat site → 🤖 button appears at bottom-right
@@ -56,7 +56,7 @@ npm run build:extension
 5. Agent automatically executes tools and sends results back to AI
 ```
 
-## Architecture / 架构
+## Architecture
 
 ```
 src/
@@ -73,14 +73,14 @@ src/
 └── userscript/       # Userscript wrapper
 ```
 
-## Tech Stack / 技术栈
+## Tech Stack
 
 - **Vite + vite-plugin-monkey** — Single source → Userscript + Chrome Extension
 - **File System Access API** — Native browser file read/write
 - **Shadow DOM** — Style isolation from host page
 - **TypeScript** — Fully typed
 
-## Build / 构建
+## Build
 
 ```bash
 npm install
