@@ -198,10 +198,10 @@ export class AgentLoop {
     // 也扫描代码块内部（AI 可能把工具放在 ``` 代码块里）
     const codeBlocks = content.match(/```[\s\S]*?```/g) || []
     for (const block of codeBlocks) {
-      // 提取语言标记和代码块内容
-      const langMatch = block.match(/```(\S+)\n?/)
+      // 提取语言标记（``` 后的整行，含空格）和代码块内容
+      const langMatch = block.match(/```([^\n]+)\n?/)
       const lang = langMatch ? langMatch[1].toLowerCase() : ''
-      const inner = block.replace(/```\S*\n?/g, '').replace(/```/g, '').trim()
+      const inner = block.replace(/```[^\n]*\n?/g, '').replace(/```/g, '').trim()
 
       // Markdown 渲染后语言标记可能是 `[edit: path]`、`[list]`（作为 info string）
       if (lang.startsWith('[')) {
