@@ -247,8 +247,8 @@ export class AgentLoop {
     }
 
     // [grep: pattern] — 文件内容搜索
-    const grepMatch = content.match(/\[(?:grep|搜索内容)[：:]\s*(.+?)\]/)
-    if (grepMatch) {
+    const grepMatches = content.matchAll(/\[(?:grep|搜索内容)[：:]\s*(.+?)\]/g)
+    for (const grepMatch of grepMatches) {
       tools.push({ type: 'grep_code', pattern: grepMatch[1].trim(), confidence: 0.95 })
     }
 
@@ -257,9 +257,9 @@ export class AgentLoop {
       tools.push({ type: 'list_files', confidence: 0.95 })
     }
 
-    // [edit: path] old\n====\nnew [/edit] — 安全编辑（[/edit] 可选）
-    const editBlock = content.match(/\[(?:edit|编辑)[：:]\s*([^\]]+)\]\s*([\s\S]*?)(?:\[\/(?:edit|编辑)\]|$)/m)
-    if (editBlock) {
+    // [edit: path] old\n====\nnew [/edit] — 支持多个
+    const editMatches = content.matchAll(/\[(?:edit|编辑)[：:]\s*([^\]]+)\]\s*([\s\S]*?)(?:\[\/(?:edit|编辑)\]|$)/g)
+    for (const editBlock of editMatches) {
       console.log('[BAI Agent] 检测到 edit:', editBlock[1], '| body:', editBlock[2].substring(0, 60))
       // 找分隔符：优先匹配单独成行的 ==== 或 ---
       const sep = editBlock[2].match(/\n\s*====\s*\n|\n\s*---\s*\n|(?<=^|\n)====(?=\n|$)|\n====|====\n/)
@@ -298,9 +298,9 @@ export class AgentLoop {
       }
     }
 
-    // [write: path] ... [/write] — 全量写入
-    const writeBlock = content.match(/\[(?:write|写入)[：:]\s*([^\]]+)\]\s*([\s\S]*?)\s*\[\/(?:write|写入)\]/)
-    if (writeBlock) {
+    // [write: path] ... [/write] — 支持多个
+    const writeMatches = content.matchAll(/\[(?:write|写入)[：:]\s*([^\]]+)\]\s*([\s\S]*?)\s*\[\/(?:write|写入)\]/g)
+    for (const writeBlock of writeMatches) {
       tools.push({
         type: 'write_file',
         filePath: writeBlock[1].trim(),
@@ -310,8 +310,8 @@ export class AgentLoop {
     }
 
     // [search: pattern] 或 [搜索: pattern]
-    const searchMatch = content.match(/\[(?:search|搜索)[：:]\s*([^\]]+)\]/)
-    if (searchMatch) {
+    const searchMatches = content.matchAll(/\[(?:search|搜索)[：:]\s*([^\]]+)\]/g)
+    for (const searchMatch of searchMatches) {
       tools.push({
         type: 'search_code',
         pattern: searchMatch[1].trim(),
