@@ -57,6 +57,7 @@ export class AgentLoop {
   private dirHandle: FileSystemDirectoryHandle | null = null
   private running = false
   private lastMessageCount = 0
+  private lastContentHash = ''
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private pendingTasks: Array<() => Promise<void>> = []
   private isProcessing = false
@@ -122,11 +123,16 @@ export class AgentLoop {
       const conv = await this.options.getConversation()
       const aiMessages = conv.messages.filter((m) => m.role === 'assistant')
 
-      if (aiMessages.length > this.lastMessageCount) {
-        // 有新的 AI 消息
+      // 内容指纹（应对消息数不变但内容变的情况）
+      const currentHash = aiMessages.map(m=>m.content).join('|').length.toString()
+      const contentChanged = currentHash !== this.lastContentHash
+
+      if (aiMessages.length > this.lastMessageCount || contentChanged) {
+        // 获取新消息（根据数或内容变化）
         const newMessages = aiMessages.slice(this.lastMessageCount)
         this.lastMessageCount = aiMessages.length
-        this.options.onLog('info', `📩 检测到 ${newMessages.length} 条新 AI 消息`)
+        this.lastContentHash = currentHash
+        if (newMessages.length > 0) this.options.onLog('info', `📩 检测到 ${newMessages.length} 条新 AI 消息`)
 
         for (const msg of newMessages) {
           console.log('[BAI Agent] AI消息内容('+msg.content.length+'字符):', msg.content.substring(0, 200))
@@ -188,7 +194,26 @@ export class AgentLoop {
     // 也扫描代码块内部（AI 可能把工具放在 ``` 代码块里）
     const codeBlocks = content.match(/```[\s\S]*?```/g) || []
     for (const block of codeBlocks) {
-      const inner = block.replace(/```\w*\n?/g, '').replace(/```/g, '').trim()
+      // 提取语言标记和代码块内容
+      const langMatch = block.match(/```(\S+)\n?/)
+      const lang = langMatch ? langMatch[1].toLowerCase() : ''
+      const inner = block.replace(/```\S*\n?/g, '').replace(/```/g, '').trim()
+
+      // 如果语言标记是 edit:path 格式，提取路径
+      if (lang.startsWith('edit:')) {
+        const fp = lang.replace(/^edit[：:]\s*/, '').trim()
+        if (fp) tools.push(...this.detectPatterns(`[edit: ${fp}]\n${inner}\n[/edit]`))
+        continue
+      }
+
+      // 如果语言标记是 read:path、write:path 格式
+      if (lang.startsWith('read:')) {
+        const fp = lang.replace(/^read[：:]\s*/, '').trim()
+        if (fp) tools.push({ type: 'read_file', filePath: fp, confidence: 0.9 })
+        continue
+      }
+
+      // 一般代码块，用 detectPatterns 检查内容
       tools.push(...this.detectPatterns(inner))
     }
 
