@@ -199,17 +199,25 @@ export class AgentLoop {
       const lang = langMatch ? langMatch[1].toLowerCase() : ''
       const inner = block.replace(/```\S*\n?/g, '').replace(/```/g, '').trim()
 
-      // 如果语言标记是 edit:path 格式，提取路径
-      if (lang.startsWith('edit:')) {
-        const fp = lang.replace(/^edit[：:]\s*/, '').trim()
-        if (fp) tools.push(...this.detectPatterns(`[edit: ${fp}]\n${inner}\n[/edit]`))
-        continue
+      // Markdown 渲染后语言标记可能是 `[edit: path]`（作为 info string）
+      if (lang.startsWith('[')) {
+        const toolInTag = lang.match(/\[(edit|read|write)[：:]\s*([^\]]+)\]/)
+        if (toolInTag) {
+          const fp = toolInTag[2].trim()
+          if (toolInTag[1] === 'edit') tools.push(...this.detectPatterns(`[edit: ${fp}]\n${inner}\n[/edit]`))
+          else if (toolInTag[1] === 'read') tools.push({ type: 'read_file', filePath: fp, confidence: 0.9 })
+          else if (toolInTag[1] === 'write') tools.push(...this.detectPatterns(`[write: ${fp}]\n${inner}`))
+          continue
+        }
       }
 
-      // 如果语言标记是 read:path、write:path 格式
-      if (lang.startsWith('read:')) {
-        const fp = lang.replace(/^read[：:]\s*/, '').trim()
-        if (fp) tools.push({ type: 'read_file', filePath: fp, confidence: 0.9 })
+      // 标准语言标记：edit:path、read:path
+      const tagFp = lang.match(/^(edit|read|write)[：:]\s*(.+)/)
+      if (tagFp) {
+        const [_, tool, fp] = tagFp
+        if (tool === 'edit') tools.push(...this.detectPatterns(`[edit: ${fp}]\n${inner}\n[/edit]`))
+        else if (tool === 'read') tools.push({ type: 'read_file', filePath: fp.trim(), confidence: 0.9 })
+        else if (tool === 'write') tools.push(...this.detectPatterns(`[write: ${fp}]\n${inner}`))
         continue
       }
 
