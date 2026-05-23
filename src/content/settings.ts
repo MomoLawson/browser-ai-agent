@@ -86,6 +86,7 @@ const PROMPT_BODY = [
 ]
 
 const THINK_DIR: Record<Lang, string> = {
+  'auto': 'Think and respond in English',
   'en-US': 'Think and respond in English',
   'zh-CN': 'Think and respond in Simplified Chinese',
   'zh-TW': 'Think and respond in Traditional Chinese',

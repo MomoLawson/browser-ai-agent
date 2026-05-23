@@ -2,7 +2,8 @@
  * AgentPanel — 简洁状态面板
  *
  * 无文件树，字体更大，手动选择项目。
- * 左下角有设置按钮（齿轮图标），打开语言选择面板。
+ * 右上角有设置按钮（⚙️），打开语言选择面板。
+ * 界面文本支持 en-US / zh-CN / zh-TW。
  */
 const CSS = `
 *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans SC',sans-serif}
@@ -29,25 +30,18 @@ const CSS = `
 .btn-g{background:#22c55e;color:#fff}.btn-g:hover{background:#16a34a}
 .btn-o{background:transparent;color:#64748b;border:1px solid #e2e8f0}.btn-o:hover{background:#f8fafc}
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
-
-/* 提示词 */
 .pblock{background:#fefce8;border:1px solid #fde68a;border-radius:10px;overflow:hidden;margin-bottom:12px}
 .pblock.hidden{display:none}
 .phdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#fef3c7;font-size:12px;font-weight:600;color:#92400e}
 .ptext{font-family:'SF Mono','Fira Code',monospace;font-size:12px;line-height:1.5;padding:10px 12px;background:#fffbeb;color:#1a1a2e;white-space:pre-wrap;max-height:120px;overflow-y:auto}
 .pacts{display:flex;gap:6px;padding:8px 12px;background:#fef3c7;border-top:1px solid #fde68a}
-
-/* 设置面板 */
 .sp{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2147483648;background:#fff;border-radius:14px;box-shadow:0 8px 36px rgba(0,0,0,.25);padding:20px;width:300px;max-width:90vw}
 .sp.hidden{display:none}
 .sp h3{margin:0 0 12px;font-size:15px;color:#1a1a2e}
 .sp label{display:block;font-size:13px;color:#64748b;margin-bottom:6px}
 .sp select{width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1a1a2e;background:#fff;cursor:pointer}
 .sp .sp-close{margin-top:14px;width:100%}
-
-/* 日志 */
-.log{margin-top:6px}
-.log-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.log{margin-top:6px}.log-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
 .log-t{font-size:12px;font-weight:600;color:#64748b}
 .log-b{max-height:140px;overflow-y:auto;background:#0f172a;border-radius:8px;padding:6px 8px;font-family:'SF Mono','Fira Code',monospace;font-size:11px;line-height:1.5}
 .log-b .e{display:flex;gap:5px;word-break:break-all;padding:1px 0}
@@ -60,22 +54,87 @@ const CSS = `
 
 import { loadSettings, saveSettings, resolveLang, LANG_NAMES, type Lang } from '../settings'
 
+type UILang = 'en-US' | 'zh-CN' | 'zh-TW'
+const UI_TEXTS: Record<UILang, Record<string, string>> = {
+  'en-US': {
+    waiting: 'Waiting for project',
+    select: 'Select project',
+    not_selected: 'Not selected',
+    send_prompt: '📋 Send prompt to AI',
+    fill_input: '📝 Fill input',
+    copy: '📋 Copy',
+    logs: 'Logs',
+    clear: 'Clear',
+    cleared: 'Cleared',
+    connect_hint: 'Connect a project to see logs',
+    settings: '⚙️ Settings',
+    lang_label: 'Language / 语言 / 語言',
+    close: 'Close',
+    filled: '📝 Filled input',
+    copied: '📋 Copied',
+  },
+  'zh-CN': {
+    waiting: '等待连接项目',
+    select: '📁 选择项目',
+    not_selected: '未选择',
+    send_prompt: '📋 发送提示词给 AI',
+    fill_input: '📝 填入输入框',
+    copy: '📋 复制',
+    logs: '操作日志',
+    clear: '清除',
+    cleared: '已清除',
+    connect_hint: '连接项目后这里显示操作记录',
+    settings: '⚙️ 设置',
+    lang_label: '界面语言',
+    close: '关闭',
+    filled: '📝 已填入',
+    copied: '📋 已复制',
+  },
+  'zh-TW': {
+    waiting: '等待連接專案',
+    select: '📁 選擇專案',
+    not_selected: '未選擇',
+    send_prompt: '📋 發送提示詞給 AI',
+    fill_input: '📝 填入輸入框',
+    copy: '📋 複製',
+    logs: '操作日誌',
+    clear: '清除',
+    cleared: '已清除',
+    connect_hint: '連接專案後這裡顯示操作記錄',
+    settings: '⚙️ 設定',
+    lang_label: '介面語言',
+    close: '關閉',
+    filled: '📝 已填入',
+    copied: '📋 已複製',
+  },
+}
+
+type UIKey = keyof typeof UI_TEXTS['en-US']
+
 export class AgentPanel {
   private host: HTMLElement
   private shadow: ShadowRoot
   private dragging=false;private dOff={x:0,y:0}
+  private lang: UILang = 'en-US'
   private elPane!: HTMLElement;private elStatus!: HTMLElement;private elSelect!: HTMLButtonElement
   private elInfo!: HTMLElement;private elLog!: HTMLElement;private elPrompt!: HTMLElement;private elPromptText!: HTMLElement
   private elSettingsBtn!: HTMLButtonElement
   private elSettingsPanel!: HTMLElement;private elLangSelect!: HTMLSelectElement
+  private elStatusText!: HTMLElement
   onSelectProject?:()=>Promise<{name:string;fileCount:number}|null>
   onClose?:()=>void
   onCopyToInput?:(text:string)=>void
   onSettingsChange?:()=>void
 
   constructor(){
+    const s = loadSettings()
+    this.lang = resolveLang(s) as UILang
     this.host=document.createElement('div');document.body.appendChild(this.host)
     this.shadow=this.host.attachShadow({mode:'open'});this.render();this.bindEvents()
+  }
+
+  private t(key: UIKey): string {
+    return UI_TEXTS[this.lang][key] || UI_TEXTS['en-US'][key] || key
   }
 
   private render():void{
@@ -84,39 +143,54 @@ export class AgentPanel {
 <div class="panel" id="pn">
 <div class="hdr"><div class="hdr-l">🤖 AI Agent</div><div class="hdr-r"><button id="stgBtn" title="Settings">⚙️</button><button id="cl">✕</button></div></div>
 <div class="body">
-  <div class="status-bar"><span class="dot idle" id="dot"></span><span class="status" id="st">Waiting for project</span></div>
+  <div class="status-bar"><span class="dot idle" id="dot"></span><span class="status" id="st">${this.t('waiting')}</span></div>
   <div class="row">
-    <button class="btn btn-p" id="sel">📁 Select project</button>
-    <div class="info" id="info"><span class="lbl">Not selected</span></div>
+    <button class="btn btn-p" id="sel">📁 ${this.t('select')}</button>
+    <div class="info" id="info"><span class="lbl">${this.t('not_selected')}</span></div>
   </div>
   <div class="pblock hidden" id="pb">
-    <div class="phdr">📋 Send prompt to AI</div>
+    <div class="phdr">${this.t('send_prompt')}</div>
     <div class="ptext" id="pt"></div>
     <div class="pacts">
-      <button class="btn btn-g" id="ci">📝 Fill input</button>
-      <button class="btn btn-o" id="cc">📋 Copy</button>
+      <button class="btn btn-g" id="ci">${this.t('fill_input')}</button>
+      <button class="btn btn-o" id="cc">${this.t('copy')}</button>
     </div>
   </div>
   <div class="log">
-    <div class="log-h"><span class="log-t">Logs</span><button class="btn btn-o" id="clr" style="font-size:11px;padding:3px 8px">Clear</button></div>
-    <div class="log-b" id="lb"><div class="empty">Connect a project to see logs</div></div>
+    <div class="log-h"><span class="log-t">${this.t('logs')}</span><button class="btn btn-o" id="clr" style="font-size:11px;padding:3px 8px">${this.t('clear')}</button></div>
+    <div class="log-b" id="lb"><div class="empty">${this.t('connect_hint')}</div></div>
   </div>
 </div></div>
 <div class="sp hidden" id="sp">
   <h3>⚙️ Settings</h3>
-  <label>Language / 语言 / 語言</label>
+  <label>${this.t('lang_label')}</label>
   <select id="langSel"></select>
-  <button class="btn btn-p sp-close" id="spCl">Close</button>
+  <button class="btn btn-p sp-close" id="spCl">${this.t('close')}</button>
 </div>`
     this.elPane=this.byId('pn');this.elStatus=this.byId('dot');this.elSelect=this.byId('sel') as HTMLButtonElement
     this.elInfo=this.byId('info');this.elLog=this.byId('lb');this.elPrompt=this.byId('pb');this.elPromptText=this.byId('pt')
+    this.elStatusText=this.byId('st')
     this.elSettingsBtn=this.byId('stgBtn') as HTMLButtonElement
     this.elSettingsPanel=this.byId('sp');this.elLangSelect=this.byId('langSel') as HTMLSelectElement
-    // Populate language options
     const current = loadSettings().language
     this.elLangSelect.innerHTML=Object.entries(LANG_NAMES).map(([k,v])=>`<option value="${k}"${k===current?' selected':''}>${v}</option>`).join('')
   }
+
   private byId(i:string):HTMLElement{return this.shadow.getElementById(i)!}
+
+  private refreshUI(): void {
+    // 更新所有静态文本
+    const st = this.byId('st')
+    if (!st.textContent || st.textContent === UI_TEXTS['en-US'].waiting) st.textContent = this.t('waiting')
+    this.elSelect.textContent = `📁 ${this.t('select')}`
+    // Update prompt block
+    const phdr = this.shadow.querySelector('.phdr')
+    if (phdr) phdr.textContent = this.t('send_prompt')
+    const ci = this.byId('ci'); ci.textContent = this.t('fill_input')
+    const cc = this.byId('cc'); cc.textContent = this.t('copy')
+    const logT = this.shadow.querySelector('.log-t'); if(logT) logT.textContent = this.t('logs')
+    const clr = this.byId('clr'); clr.textContent = this.t('clear')
+  }
 
   private bindEvents():void{
     const hdr=this.shadow.querySelector('.hdr')!;hdr.addEventListener('mousedown',e=>{const me=e as MouseEvent;if((me.target as HTMLElement).closest('button'))return;this.dragging=true;this.dOff.x=me.clientX-this.elPane.offsetLeft;this.dOff.y=me.clientY-this.elPane.offsetTop})
@@ -124,17 +198,16 @@ export class AgentPanel {
     document.addEventListener('mouseup',()=>{this.dragging=false})
     this.byId('cl').addEventListener('click',()=>this.onClose?.())
     this.byId('ov').addEventListener('click',e=>{if(e.target===e.currentTarget)this.onClose?.()})
-    this.elSelect.addEventListener('click',async()=>{if(!this.onSelectProject)return;this.elSelect.disabled=true;this.elSelect.textContent='⏳...';try{const r=await this.onSelectProject();if(r)this.setProjectInfo(r.name,r.fileCount)}catch(e){this.addLog('error',`❌ ${(e as Error).message}`)}finally{this.elSelect.disabled=false;this.elSelect.textContent='📁 Select project'}})
+    this.elSelect.addEventListener('click',async()=>{if(!this.onSelectProject)return;this.elSelect.disabled=true;this.elSelect.textContent='⏳...';try{const r=await this.onSelectProject();if(r)this.setProjectInfo(r.name,r.fileCount)}catch(e){this.addLog('error',`❌ ${(e as Error).message}`)}finally{this.elSelect.disabled=false;this.elSelect.textContent=`📁 ${this.t('select')}`}})
     this.byId('clr').addEventListener('click',()=>this.clearLogs())
-    this.byId('ci').addEventListener('click',()=>{if(!this.elPromptText.textContent)return;this.onCopyToInput?.(this.elPromptText.textContent);this.addLog('success','📝 Filled input')})
-    this.byId('cc').addEventListener('click',()=>{const t=this.elPromptText.textContent;if(!t)return;navigator.clipboard.writeText(t).then(()=>this.addLog('success','📋 Copied'))})
+    this.byId('ci').addEventListener('click',()=>{if(!this.elPromptText.textContent)return;this.onCopyToInput?.(this.elPromptText.textContent);this.addLog('success',this.t('filled'))})
+    this.byId('cc').addEventListener('click',()=>{const t=this.elPromptText.textContent;if(!t)return;navigator.clipboard.writeText(t).then(()=>this.addLog('success',this.t('copied')))})
 
-    // Settings
-    this.elSettingsBtn.addEventListener('click',()=>{
-      this.elSettingsPanel.classList.toggle('hidden')
-    })
+    this.elSettingsBtn.addEventListener('click',()=>{this.elSettingsPanel.classList.toggle('hidden')})
     this.elLangSelect.addEventListener('change',()=>{
       const s=loadSettings();s.language=this.elLangSelect.value as Lang;saveSettings(s)
+      this.lang = resolveLang(s) as UILang
+      this.refreshUI()
     })
     this.byId('spCl').addEventListener('click',()=>{
       this.elSettingsPanel.classList.add('hidden')
@@ -143,11 +216,11 @@ export class AgentPanel {
   }
 
   showPrompt(t:string):void{this.elPromptText.textContent=t;this.elPrompt.classList.remove('hidden')}
-  setStatus(s:'idle'|'listening'|'error',t?:string):void{this.elStatus.className=`dot ${s}`;if(t)this.byId('st').textContent=t}
+  setStatus(s:'idle'|'listening'|'error',t?:string):void{this.elStatus.className=`dot ${s}`;if(t)this.elStatusText.textContent=t}
   setProjectInfo(name:string,count:number):void{this.elInfo.innerHTML=`<span class="lbl">Project:</span> ${esc(name)}  │  <span class="lbl">Files:</span> ${count}`;this.elInfo.classList.add('act')}
   addLog(type:'info'|'success'|'error'|'warn',msg:string):void{const e=this.elLog.querySelector('.empty');if(e)e.remove();const d=document.createElement('div');d.className='e';d.innerHTML=`<span class="t">${tm()}</span><span class="m ${type}">${esc(msg)}</span>`;this.elLog.appendChild(d);this.elLog.scrollTop=this.elLog.scrollHeight}
-  clearLogs():void{this.elLog.innerHTML='<div class="empty">Cleared</div>'}
-  updateStatusBar(t:string):void{this.byId('st').textContent=t}
+  clearLogs():void{this.elLog.innerHTML=`<div class="empty">${this.t('cleared')}</div>`}
+  updateStatusBar(t:string):void{this.elStatusText.textContent=t}
   destroy():void{this.host.remove()}
 }
 function esc(s:string):string{const d=document.createElement('div');d.textContent=s;return d.innerHTML}
