@@ -53,6 +53,8 @@ async function openPanel(): Promise<void> {
     panel!.setProjectInfo(projectName, 0)
     panel!.setStatus('listening', 'listening')
     panel!.addLog('info', `Project: ${projectName}`)
+    const prompt = buildPrompt(projectName)
+    panel!.showPrompt(prompt)
   }
 
   // 提示词复制到输入框
