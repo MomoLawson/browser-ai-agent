@@ -1,5 +1,5 @@
 /**
- * AgentPanel — 状态面板，Lucide CDN 图标
+ * AgentPanel — 状态面板，内联 Lucide SVG 图标（无 CDN）。
  */
 const CSS = `
 *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans SC',sans-serif}
@@ -26,9 +26,7 @@ const CSS = `
 .btn-g{background:#22c55e;color:#fff}.btn-g:hover{background:#16a34a}
 .btn-o{background:transparent;color:#64748b;border:1px solid #e2e8f0}.btn-o:hover{background:#f8fafc}
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
-[data-lucide]{width:14px;height:14px;flex-shrink:0;display:inline-block;vertical-align:middle}
-.hdr-l [data-lucide]{width:18px;height:18px}
-.hdr-r [data-lucide]{width:16px;height:16px}
+.bai-icon{flex-shrink:0;vertical-align:middle}
 .pblock{background:#fefce8;border:1px solid #fde68a;border-radius:10px;overflow:hidden;margin-bottom:12px}
 .pblock.hidden{display:none}
 .phdr{display:flex;align-items:center;gap:6px;padding:8px 12px;background:#fef3c7;font-size:12px;font-weight:600;color:#92400e}
@@ -51,6 +49,7 @@ const CSS = `
 .log-b::-webkit-scrollbar-thumb{background:#334155;border-radius:2px}
 `
 import { loadSettings, saveSettings, resolveLang, LANG_NAMES, type Lang } from '../settings'
+import { icon } from './icons'
 type UILang='en-US'|'zh-CN'|'zh-TW'
 const T:Record<UILang,Record<string,string>>={
   'en-US':{wa:'Waiting for project',se:'Select project',ns:'Not selected',sp:'Send prompt to AI',fi:'Fill input',cp:'Copy',lg:'Logs',cl:'Clear',cd:'Cleared',ch:'Connect a project to see logs',st:'Settings',ll:'Language',cs:'Close',fd:'Filled input',co:'Copied'},
@@ -71,37 +70,34 @@ export class AgentPanel{
   constructor(){const s=loadSettings();this.lang=resolveLang(s)as UILang;this.host=document.createElement('div');document.body.appendChild(this.host);this.shadow=this.host.attachShadow({mode:'open'});this.render();this.bindEvents()}
   private t(k:K){return T[this.lang][k]||T['en-US'][k]||k}
   private $(i:string){return this.shadow.getElementById(i)!}
-  private ri(){try{(window as any).lucide?.createIcons?.({root:this.shadow})}catch{}}
 
   private render(){
     this.shadow.innerHTML=`<style>${CSS}</style>
 <div class="overlay" id="ov"><div class="panel" id="pn">
-<div class="hdr"><div class="hdr-l"><i data-lucide="bot"></i>BAI Agent</div><div class="hdr-r"><button id="stg" title="${this.t('st')}"><i data-lucide="settings"></i></button><button id="cl"><i data-lucide="x"></i></button></div></div>
+<div class="hdr"><div class="hdr-l">${icon('bot',18)}BAI Agent</div><div class="hdr-r"><button id="stg" title="${this.t('st')}">${icon('settings',16)}</button><button id="cl">${icon('x',16)}</button></div></div>
 <div class="body">
   <div class="status-bar"><span class="dot idle" id="dot"></span><span class="status" id="st">${this.t('wa')}</span></div>
-  <div class="row"><button class="btn btn-p" id="sel"><i data-lucide="folder-open"></i>${this.t('se')}</button><div class="info" id="info"><span class="lbl">${this.t('ns')}</span></div></div>
-  <div class="pblock hidden" id="pb"><div class="phdr"><i data-lucide="message-square"></i>${this.t('sp')}</div><div class="ptext" id="pt"></div><div class="pacts"><button class="btn btn-g" id="ci"><i data-lucide="clipboard-paste"></i>${this.t('fi')}</button><button class="btn btn-o" id="cc"><i data-lucide="copy"></i>${this.t('cp')}</button></div></div>
-  <div class="log"><div class="log-h"><span class="log-t"><i data-lucide="list"></i>${this.t('lg')}</span><button class="btn btn-o" id="clr" style="font-size:11px;padding:3px 8px"><i data-lucide="trash-2"></i>${this.t('cl')}</button></div><div class="log-b" id="lb"><div class="empty">${this.t('ch')}</div></div></div>
+  <div class="row"><button class="btn btn-p" id="sel">${icon('folderOpen',14)}${this.t('se')}</button><div class="info" id="info"><span class="lbl">${this.t('ns')}</span></div></div>
+  <div class="pblock hidden" id="pb"><div class="phdr">${icon('messageSquare',14)}${this.t('sp')}</div><div class="ptext" id="pt"></div><div class="pacts"><button class="btn btn-g" id="ci">${icon('clipboardPaste',14)}${this.t('fi')}</button><button class="btn btn-o" id="cc">${icon('copy',14)}${this.t('cp')}</button></div></div>
+  <div class="log"><div class="log-h"><span class="log-t">${icon('list',14)}${this.t('lg')}</span><button class="btn btn-o" id="clr" style="font-size:11px;padding:3px 8px">${icon('trash2',12)}${this.t('cl')}</button></div><div class="log-b" id="lb"><div class="empty">${this.t('ch')}</div></div></div>
 </div></div>
-<div class="sp hidden" id="sp"><h3><i data-lucide="sliders"></i>${this.t('st')}</h3><label>${this.t('ll')}</label><select id="langSel"></select><button class="btn btn-p sp-close" id="spCl"><i data-lucide="check"></i>${this.t('cs')}</button></div>`
+<div class="sp hidden" id="sp"><h3>${icon('sliders',16)}${this.t('st')}</h3><label>${this.t('ll')}</label><select id="langSel"></select><button class="btn btn-p sp-close" id="spCl">${icon('check',14)}${this.t('cs')}</button></div>`
     this.elPane=this.$('pn');this.elDot=this.$('dot');this.elSelect=this.$('sel')as HTMLButtonElement
     this.elInfo=this.$('info');this.elLog=this.$('lb');this.elPrompt=this.$('pb');this.elPT=this.$('pt')
     this.elST=this.$('st');this.elStgBtn=this.$('stg')as HTMLButtonElement
     this.elStgPnl=this.$('sp');this.elLang=this.$('langSel')as HTMLSelectElement
     const c=loadSettings().language
     this.elLang.innerHTML=Object.entries(LANG_NAMES).map(([k,v])=>`<option value="${k}"${k===c?' selected':''}>${v}</option>`).join('')
-    setTimeout(()=>this.ri(),100)
   }
 
   private rui(){
     this.elST.textContent=this.t('wa')
-    this.elSelect.innerHTML=`<i data-lucide="folder-open"></i>${this.t('se')}`
-    this.$('ci').innerHTML=`<i data-lucide="clipboard-paste"></i>${this.t('fi')}`
-    this.$('cc').innerHTML=`<i data-lucide="copy"></i>${this.t('cp')}`
-    this.$('clr').innerHTML=`<i data-lucide="trash-2"></i>${this.t('cl')}`
-    const p=this.shadow.querySelector('.phdr');if(p)p.innerHTML=`<i data-lucide="message-square"></i>${this.t('sp')}`
-    const lt=this.shadow.querySelector('.log-t');if(lt)lt.innerHTML=`<i data-lucide="list"></i>${this.t('lg')}`
-    setTimeout(()=>this.ri(),100)
+    this.elSelect.innerHTML=`${icon('folderOpen',14)}${this.t('se')}`
+    this.$('ci').innerHTML=`${icon('clipboardPaste',14)}${this.t('fi')}`
+    this.$('cc').innerHTML=`${icon('copy',14)}${this.t('cp')}`
+    this.$('clr').innerHTML=`${icon('trash2',12)}${this.t('cl')}`
+    const p=this.shadow.querySelector('.phdr');if(p)p.innerHTML=`${icon('messageSquare',14)}${this.t('sp')}`
+    const lt=this.shadow.querySelector('.log-t');if(lt)lt.innerHTML=`${icon('list',14)}${this.t('lg')}`
   }
 
   private bindEvents(){
@@ -111,7 +107,7 @@ export class AgentPanel{
     document.addEventListener('mouseup',()=>{this.dragging=false})
     this.$('cl').addEventListener('click',()=>this.onClose?.())
     this.$('ov').addEventListener('click',e=>{if(e.target===e.currentTarget)this.onClose?.()})
-    this.elSelect.addEventListener('click',async()=>{if(!this.onSelectProject)return;this.elSelect.disabled=true;this.elSelect.innerHTML='...';try{const r=await this.onSelectProject();if(r)this.setProjectInfo(r.name,r.fileCount)}catch(e){this.addLog('error',`x ${(e as Error).message}`)}finally{this.elSelect.disabled=false;this.elSelect.innerHTML=`<i data-lucide="folder-open"></i>${this.t('se')}`;setTimeout(()=>this.ri(),100)}})
+    this.elSelect.addEventListener('click',async()=>{if(!this.onSelectProject)return;this.elSelect.disabled=true;this.elSelect.textContent='...';try{const r=await this.onSelectProject();if(r)this.setProjectInfo(r.name,r.fileCount)}catch(e){this.addLog('error',`x ${(e as Error).message}`)}finally{this.elSelect.disabled=false;this.elSelect.innerHTML=`${icon('folderOpen',14)}${this.t('se')}`}})
     this.$('clr').addEventListener('click',()=>this.clearLogs())
     this.$('ci').addEventListener('click',()=>{if(!this.elPT.textContent)return;this.onCopyToInput?.(this.elPT.textContent);this.addLog('success',this.t('fd'))})
     this.$('cc').addEventListener('click',()=>{const t=this.elPT.textContent;if(!t)return;navigator.clipboard.writeText(t).then(()=>this.addLog('success',this.t('co')))})
