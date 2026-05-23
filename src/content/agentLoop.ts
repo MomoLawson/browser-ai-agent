@@ -448,6 +448,7 @@ export class AgentLoop {
   // ============================================================
 
   private formatFileTree(entries: FileEntry[]): string {
+    if (entries.length === 0) return '📁 项目为空，没有文件'
     const lines: string[] = ['📁 项目文件结构:\n```']
     this.buildTreeLines(entries, lines, '')
     lines.push('```')
