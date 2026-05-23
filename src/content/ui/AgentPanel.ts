@@ -135,7 +135,6 @@ export class AgentPanel {
     })
     this.elLangSelect.addEventListener('change',()=>{
       const s=loadSettings();s.language=this.elLangSelect.value as Lang;saveSettings(s)
-      this.addLog('success','🌐 Language changed (re-select project to apply)')
     })
     this.byId('spCl').addEventListener('click',()=>{
       this.elSettingsPanel.classList.add('hidden')

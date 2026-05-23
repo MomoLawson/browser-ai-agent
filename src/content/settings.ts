@@ -55,119 +55,52 @@ export const LANG_NAMES: Record<Lang, string> = {
  *   - tool_format: 工具格式
  *   - rules: 规则
  */
+const PROMPT_BODY = [
+  '<system-reminder>',
+  '[local-project: {name}]',
+  '',
+  'You have access to a local project folder through a browser agent. Use the following tool markers in your reply to operate files:',
+  '',
+  '[list]                List all project files',
+  '[search: *.ts]        Search files by glob pattern',
+  '[grep: keyword]       Search file contents',
+  '[read: filepath]      Read a file',
+  '[write: filepath]     Create a new file',
+  '  file content here',
+  '[/write]',
+  '[edit: filepath]      Edit an existing file (read first)',
+  '  code you want to replace',
+  '  ====',
+  '  new code',
+  '[/edit]',
+  '',
+  'Rules:',
+  '- [list] [read] [search] go directly in your reply text',
+  '- [edit] [write] put inside a markdown code block (```)',
+  '- [write] FAILS if file already exists → use [read]+[edit] instead',
+  '- [edit] requires old code to EXACTLY match file content',
+  '- [edit] separator is ==== (not ---, markdown renders --- as <hr>)',
+  "- Do NOT re-read files you've already read this turn",
+  '- {think_dir}',
+  '</system-reminder>',
+]
+
+const THINK_DIR: Record<Lang, string> = {
+  'en-US': 'Think and respond in English',
+  'zh-CN': 'Think and respond in Simplified Chinese',
+  'zh-TW': 'Think and respond in Traditional Chinese',
+}
+
 export function buildSystemPrompt(name: string, lang: Lang): string {
-  switch (lang) {
-    case 'zh-CN': return zhCNSysPrompt(name)
-    case 'zh-TW': return zhTWSysPrompt(name)
-    default: return enUSSysPrompt(name)
-  }
+  return PROMPT_BODY.map(line => line
+    .replace('{name}', name)
+    .replace('{think_dir}', THINK_DIR[lang] || THINK_DIR['en-US'])
+  ).join('\n')
 }
 
 /** AgentLoop 中的工具执行反馈语言 */
 export function toolFeedbackLang(lang: Lang): 'zh' | 'en' {
   return lang === 'en-US' ? 'en' : 'zh'
-}
-
-// ---- en-US ---------------------------------------------------
-
-function enUSSysPrompt(name: string): string {
-  return [
-    '<system-reminder>',
-    `[local-project: ${name}]`,
-    '',
-    'You have access to a local project folder through a browser agent. Use the following tool markers in your reply to operate files:',
-    '',
-    '[list]                List all project files',
-    '[search: *.ts]        Search files by glob pattern',
-    '[grep: keyword]       Search file contents',
-    '[read: filepath]      Read a file',
-    '[write: filepath]     Create a new file',
-    '  file content here',
-    '[/write]',
-    '[edit: filepath]      Edit an existing file (read first)',
-    '  code you want to replace',
-    '  ====',
-    '  new code',
-    '[/edit]',
-    '',
-    'Rules:',
-    '- [list] [read] [search] go directly in your reply text',
-    '- [edit] [write] put inside a markdown code block (\\`\\`\\`)',
-    '- [write] FAILS if file already exists → use [read]+[edit] instead',
-    '- [edit] requires old code to EXACTLY match file content',
-    '- [edit] separator is ==== (not ---, markdown renders --- as <hr>)',
-    "- Do NOT re-read files you've already read this turn",
-    '- Think and respond in English',
-    '</system-reminder>',
-  ].join('\n')
-}
-
-// ---- zh-CN ---------------------------------------------------
-
-function zhCNSysPrompt(name: string): string {
-  return [
-    '<system-reminder>',
-    `[local-project: ${name}]`,
-    '',
-    '你可以通过浏览器 Agent 操作本地项目文件。在回复中使用以下工具标记：',
-    '',
-    '[list]                列出所有项目文件',
-    '[search: *.ts]        按文件名搜索 (glob)',
-    '[grep: 关键词]        搜索文件内容',
-    '[read: 文件路径]      读取文件',
-    '[write: 文件路径]     创建新文件',
-    '  文件内容',
-    '[/write]',
-    '[edit: 文件路径]      编辑已有文件（先用 read 确认）',
-    '  要替换的代码',
-    '  ====',
-    '  替换后的代码',
-    '[/edit]',
-    '',
-    '规则：',
-    '- [list] [read] [search] 直接写在回复正文中',
-    '- [edit] [write] 放在 markdown 代码块 \\`\\`\\` 内',
-    '- [write] 文件已存在时会失败 → 改用 [read]+[edit]',
-    '- [edit] 的旧代码必须与文件内容完全一致',
-    '- edit 分隔符用 ==== 而不是 ---（---会被渲染为分割线）',
-    '- 不要重复读取本轮已读过的文件',
-    '- 用简体中文思考和回复',
-    '</system-reminder>',
-  ].join('\n')
-}
-
-// ---- zh-TW ---------------------------------------------------
-
-function zhTWSysPrompt(name: string): string {
-  return [
-    '<system-reminder>',
-    `[local-project: ${name}]`,
-    '',
-    '你可以透過瀏覽器 Agent 操作本地專案檔案。在回覆中使用以下工具標記：',
-    '',
-    '[list]                列出所有專案檔案',
-    '[search: *.ts]        依檔名搜尋 (glob)',
-    '[grep: 關鍵字]        搜尋檔案內容',
-    '[read: 檔案路徑]      讀取檔案',
-    '[write: 檔案路徑]     建立新檔案',
-    '  檔案內容',
-    '[/write]',
-    '[edit: 檔案路徑]      編輯已有檔案（先用 read 確認）',
-    '  要取代的程式碼',
-    '  ====',
-    '  取代後的程式碼',
-    '[/edit]',
-    '',
-    '規則：',
-    '- [list] [read] [search] 直接寫在回覆正文中',
-    '- [edit] [write] 放在 markdown 程式碼區塊 \\`\\`\\` 內',
-    '- [write] 檔案已存在時會失敗 → 改用 [read]+[edit]',
-    '- [edit] 的舊程式碼必須與檔案內容完全一致',
-    '- edit 分隔符用 ==== 而不是 ---（---會被渲染為分隔線）',
-    '- 不要重複讀取本輪已讀過的檔案',
-    '- 用繁體中文思考和回覆',
-    '</system-reminder>',
-  ].join('\n')
 }
 
 // ============================================================
