@@ -88,6 +88,13 @@ npm run build          # → dist/browser-ai-agent.user.js
 npm run build:extension # → dist-extension/ (Chrome Extension)
 ```
 
+## Acknowledgments
+
+This project draws significant inspiration from [opencode](https://github.com/anomalyco/opencode), particularly its:
+- Tool description format (`edit.txt`, `read.txt`, `write.txt`, etc.)
+- Multi-strategy text replacement engine (9 replacer strategies for robust edit matching)
+- Clean prompt design and tool usage patterns
+
 ## License
 
 MIT

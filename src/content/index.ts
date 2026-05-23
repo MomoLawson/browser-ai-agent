@@ -17,6 +17,7 @@ import { selectProjectFolder, readDirectoryStructure } from './fileSystem'
 import { saveProjectName } from './promptInjector'
 import { saveHandle } from './handleStore'
 import { fillInput, appendToInput, simulateSend } from './injectUtils'
+import { loadSettings, resolveLang, buildSystemPrompt, t, type Lang } from './settings'
 
 let dirHandle: FileSystemDirectoryHandle | null = null
 let trigger: TriggerButton | null = null
@@ -92,41 +93,20 @@ function countCurrentAIMessages(): number {
   return c
 }
 
+let _currentLang: Lang = 'en-US'
+export function currentLang(): Lang { return _currentLang }
+
 function buildPrompt(name: string): string {
-  return [
-    '<system-reminder>',
-    `[local-project: ${name}]`,
-    '',
-    '文件操作工具：',
-    '',
-    '[list]                  列出项目文件',
-    '[search: *.ts]          搜索文件名 (glob)',
-    '[grep: 关键词]          搜索文件内容',
-    '[read: 文件路径]         读取文件内容',
-    '[write: 文件路径]        创建新文件（文件已存在时会失败）',
-    '  文件的完整新内容',
-    '[/write]',
-    '[edit: 文件路径]         编辑已有文件（必须先用 read 确认），示例：',
-    '```[edit: src/index.ts]',
-    '需要替换的原始代码（多行）',
-    '====',
-    '替换后的新代码（多行）',
-    '```',
-    '',
-    '⚠️ 规则：',
-    '1. [list] [read] 直接写在回复中',
-    '2. [edit] 用代码块(```)包裹，`====`在代码块内不受Markdown影响',
-    '2. 不要重复 read 已经读过的文件',
-    '3. [edit] 原始代码必须与文件内容逐字符完全匹配',
-    '4. [edit] 分隔符用 ==== 而不是 ---（Markdown 会渲染 ---）',
-    '</system-reminder>',
-  ].join('\n')
+  const s = loadSettings()
+  _currentLang = resolveLang(s)
+  return buildSystemPrompt(name, _currentLang)
 }
 
 function startAgentLoop(): void {
   if (!dirHandle || !panel) return
   agent?.stop()
   agent = new AgentLoop({
+    lang: _currentLang,
     getConversation: async () => {
       const ms: Array<{role:string;content:string}> = []
       document.querySelectorAll('[data-message-author-role]').forEach(el => {

@@ -21,6 +21,7 @@ import {
   searchFiles,
   grepFiles,
 } from './fileSystem'
+import { loadSettings, resolveLang, t, type Lang } from './settings'
 
 // ============================================================
 // 类型
@@ -36,6 +37,7 @@ export interface ToolCall {
 }
 
 export interface AgentLoopOptions {
+  lang?: Lang
   /** 获取当前对话（用于检测新消息） */
   getConversation: () => Promise<{ messages: Array<{ role: string; content: string }> }>
   /** 将文本注入到聊天输入框 */
@@ -54,6 +56,7 @@ export interface AgentLoopOptions {
 
 export class AgentLoop {
   private options: AgentLoopOptions
+  readonly lang: Lang
   private dirHandle: FileSystemDirectoryHandle | null = null
   private running = false
   private lastMessageCount = 0
@@ -64,6 +67,7 @@ export class AgentLoop {
 
   constructor(options: AgentLoopOptions) {
     this.options = options
+    this.lang = options.lang || resolveLang(loadSettings())
   }
 
   /** 连接项目文件夹 */
