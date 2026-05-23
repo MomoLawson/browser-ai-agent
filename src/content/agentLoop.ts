@@ -298,8 +298,8 @@ export class AgentLoop {
       }
     }
 
-    // [write: path] ... [/write] — 支持多个
-    const writeMatches = content.matchAll(/\[(?:write|写入)[：:]\s*([^\]]+)\]\s*([\s\S]*?)\s*\[\/(?:write|写入)\]/g)
+    // [write: path] ... [/write] — 支持多个和省略 [/write]
+    const writeMatches = content.matchAll(/\[(?:write|写入)[：:]\s*([^\]]+)\]\s*([\s\S]*?)(?:\[\/(?:write|写入)\]|(?=\[)|$)/g)
     for (const writeBlock of writeMatches) {
       tools.push({
         type: 'write_file',
