@@ -49,14 +49,14 @@ async function openPanel(): Promise<void> {
   // 如果项目仍在连接中，恢复面板状态
   if (dirHandle && projectName) {
     panel!.setProjectInfo(projectName, 0)
-    panel!.setStatus('listening', '监听中')
-    panel!.addLog('info', `📁 项目: ${projectName}`)
+    panel!.setStatus('listening', 'listening')
+    panel!.addLog('info', `Project: ${projectName}`)
   }
 
   // 提示词复制到输入框
   panel!.onCopyToInput = (text: string) => {
     fillInput(text)
-    panel!.addLog('success', '📝 提示词已填入输入框')
+    panel!.addLog('success', 'Prompt filled into input')
   }
 
   panel!.onSelectProject = async () => {
@@ -78,9 +78,9 @@ function afterProjectConnected(): void {
   // 生成提示词
   const prompt = buildPrompt(projectName)
   panel.showPrompt(prompt)
-  panel.addLog('success', `✅ 项目: ${projectName}`)
-  panel.addLog('info', '📋 请复制提示词并发送给 AI')
-  panel.setStatus('listening', '提示词已就绪 — 复制到输入框发送')
+  panel.addLog('success', `Project connected: ${projectName}`)
+  panel.addLog('info', 'Copy the prompt and send it to AI')
+  panel.setStatus('listening', 'Prompt ready - copy and send')
 
   startAgentLoop()
 }
@@ -170,7 +170,7 @@ function startAgentLoop(): void {
   setTimeout(() => {
     const ds = document.querySelectorAll('[data-message-author-role]').length
     const dsAssist = document.querySelectorAll('.ds-assistant-message-main-content, [class*="assistant-message"]').length
-    panel?.addLog('info', `🔍 消息检测: [data-author]=${ds}, ds-assistant=${dsAssist}`)
+    panel?.addLog('info', `Msg detect: [author]=${ds}, ds-assist=${dsAssist}`)
   }, 2000)
 }
 
