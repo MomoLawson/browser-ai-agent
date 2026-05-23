@@ -25,7 +25,21 @@ let panel: AgentPanel | null = null
 let agent: AgentLoop | null = null
 let projectName = ''
 
+let _lucideLoaded = false
+
+function loadLucide(): void {
+  if (_lucideLoaded) return
+  try {
+    const s = document.createElement('script')
+    s.src = 'https://unpkg.com/lucide@0.487.0/dist/umd/lucide.min.js'
+    s.onload = () => { _lucideLoaded = true; console.log('[BAI] Lucide loaded') }
+    s.onerror = () => console.log('[BAI] Lucide load failed, fallback to text')
+    document.head.appendChild(s)
+  } catch {}
+}
+
 function main(): void {
+  loadLucide()
   const platform = detectPlatform()
   if (!platform) { console.log('[BAI] 不支持'); return }
   console.log(`[BAI] 检测到 ${getPlatformDisplayName(platform)}`)

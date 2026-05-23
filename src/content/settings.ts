@@ -167,6 +167,18 @@ const TW_MSGS: Record<string, string> = {
   file_exists: '檔案 {0} 已存在。請用 [read] 讀取後以 [edit] 修改。',
 }
 
+/**
+ * 在 Shadow DOM 中渲染 Lucide 图标
+ */
+export function renderLucide(root: ShadowRoot): void {
+  try {
+    const l = (window as any).lucide
+    if (l?.createIcons) l.createIcons({ root, attrs: { class: 'lui' } })
+  } catch {}
+}
+
+// ---- 界面文本 ---------------------------------------------------
+
 const EN_MSGS: Record<string, string> = {
   waiting_project: 'Waiting for project',
   project: 'Project',
