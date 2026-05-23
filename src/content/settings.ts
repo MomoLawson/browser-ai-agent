@@ -75,7 +75,7 @@ const PROMPT_BODY = [
   '[/edit]',
   '',
   'Rules:',
-  '- [list] [read] [search] go directly in your reply text',
+  '- [list] [read] [search] [grep] go DIRECTLY in your reply, NEVER in ``` code blocks',
   '- [edit] [write] put inside a markdown code block (```)',
   '- [write] FAILS if file already exists → use [read]+[edit] instead',
   '- [edit] requires old code to EXACTLY match file content',

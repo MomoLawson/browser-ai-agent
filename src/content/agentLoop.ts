@@ -203,8 +203,16 @@ export class AgentLoop {
       const lang = langMatch ? langMatch[1].toLowerCase() : ''
       const inner = block.replace(/```\S*\n?/g, '').replace(/```/g, '').trim()
 
-      // Markdown 渲染后语言标记可能是 `[edit: path]`（作为 info string）
+      // Markdown 渲染后语言标记可能是 `[edit: path]`、`[list]`（作为 info string）
       if (lang.startsWith('[')) {
+        // 无路径的标记: [list] [grep: ...] [search: ...]
+        const bareMatch = lang.match(/\[(list|列出|文件列表|grep|搜索内容|search|搜索)\]/)
+        if (bareMatch) {
+          if (bareMatch[1] === 'list' || bareMatch[1] === '列出' || bareMatch[1] === '文件列表')
+            tools.push({ type: 'list_files', confidence: 0.95 })
+          continue
+        }
+        // 带路径: [edit: path] [read: path] [write: path]
         const toolInTag = lang.match(/\[(edit|read|write)[：:]\s*([^\]]+)\]/)
         if (toolInTag) {
           const fp = toolInTag[2].trim()

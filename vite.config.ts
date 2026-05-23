@@ -38,6 +38,9 @@ export default defineConfig({
           'GM_addElement',
           'GM_xmlhttpRequest',
         ],
+        require: [
+          'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/js/all.min.js',
+        ],
         runAt: 'document-end',
         noframes: true,
       },
