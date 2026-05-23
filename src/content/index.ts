@@ -51,7 +51,7 @@ async function openPanel(): Promise<void> {
   // 如果项目仍在连接中，恢复面板状态
   if (dirHandle && projectName) {
     panel!.setProjectInfo(projectName, 0)
-    panel!.setStatus('listening', 'listening')
+    panel!.setStatus('listening', '')
     panel!.addLog('info', `Project: ${projectName}`)
     const prompt = buildPrompt(projectName)
     panel!.showPrompt(prompt)
@@ -84,7 +84,7 @@ function afterProjectConnected(): void {
   panel.showPrompt(prompt)
   panel.addLog('success', `Project connected: ${projectName}`)
   panel.addLog('info', 'Copy the prompt and send it to AI')
-  panel.setStatus('listening', 'Prompt ready - copy and send')
+  panel.setStatus('listening', '')
 
   startAgentLoop()
 }

@@ -54,9 +54,9 @@ import { loadSettings, saveSettings, resolveLang, LANG_NAMES, type Lang } from '
 import { fa, renderFA } from './icons'
 type UILang='en-US'|'zh-CN'|'zh-TW'
 const T:Record<UILang,Record<string,string>>={
-  'en-US':{wa:'Waiting for project',se:'Select project',ns:'Not selected',sp:'Send prompt to AI',fi:'Fill input',cp:'Copy',lg:'Logs',cl:'Clear',cd:'Cleared',ch:'Connect a project to see logs',st:'Settings',ll:'Language',cs:'Close',fd:'Filled input',co:'Copied',pj:'Project',fl:'Files'},
-  'zh-CN':{wa:'等待连接项目',se:'选择项目',ns:'未选择',sp:'发送提示词给 AI',fi:'填入输入框',cp:'复制',lg:'操作日志',cl:'清除',cd:'已清除',ch:'连接项目后这里显示操作记录',st:'设置',ll:'界面语言',cs:'关闭',fd:'已填入',co:'已复制',pj:'项目',fl:'文件'},
-  'zh-TW':{wa:'等待連接專案',se:'選擇專案',ns:'未選擇',sp:'發送提示詞給 AI',fi:'填入輸入框',cp:'複製',lg:'操作日誌',cl:'清除',cd:'已清除',ch:'連接專案後這裡顯示操作記錄',st:'設定',ll:'介面語言',cs:'關閉',fd:'已填入',co:'已複製',pj:'專案',fl:'檔案'},
+  'en-US':{wa:'Waiting for project',se:'Select project',ns:'Not selected',sp:'Send prompt to AI',fi:'Fill input',cp:'Copy',lg:'Logs',cl:'Clear',cd:'Cleared',ch:'Connect a project to see logs',st:'Settings',ll:'Language',cs:'Close',fd:'Filled input',co:'Copied',pj:'Project',fl:'Files',ls:'Listening',pr:'Prompt ready - copy and send'},
+  'zh-CN':{wa:'等待连接项目',se:'选择项目',ns:'未选择',sp:'发送提示词给 AI',fi:'填入输入框',cp:'复制',lg:'操作日志',cl:'清除',cd:'已清除',ch:'连接项目后这里显示操作记录',st:'设置',ll:'界面语言',cs:'关闭',fd:'已填入',co:'已复制',pj:'项目',fl:'文件',ls:'监听中',pr:'提示词已就绪 - 复制后发送'},
+  'zh-TW':{wa:'等待連接專案',se:'選擇專案',ns:'未選擇',sp:'發送提示詞給 AI',fi:'填入輸入框',cp:'複製',lg:'操作日誌',cl:'清除',cd:'已清除',ch:'連接專案後這裡顯示操作記錄',st:'設定',ll:'介面語言',cs:'關閉',fd:'已填入',co:'已複製',pj:'專案',fl:'檔案',ls:'監聽中',pr:'提示詞已就緒 - 複製後傳送'},
 }
 type K=keyof typeof T['en-US']
 
@@ -121,7 +121,7 @@ export class AgentPanel{
   }
 
   showPrompt(t:string):void{this.elPT.textContent=t;this.elPrompt.classList.remove('hidden')}
-  setStatus(s:'idle'|'listening'|'error',t?:string):void{this.elDot.className=`dot ${s}`;this.elST.textContent=t||(s==='idle'?this.t('wa'):s==='error'?'Error':'Listening')}
+  setStatus(s:'idle'|'listening'|'error',t?:string):void{this.elDot.className=`dot ${s}`;this.elST.textContent=t||(s==='idle'?this.t('wa'):this.t('ls'))}
   setProjectInfo(n:string,c:number):void{this.elInfo.innerHTML=`<span class="lbl">${this.t('pj')}:</span> ${esc(n)} | <span class="lbl">${this.t('fl')}:</span> ${c}`;this.elInfo.classList.add('act')}
   addLog(t:'info'|'success'|'error'|'warn',m:string):void{const e=this.elLog.querySelector('.empty');if(e)e.remove();const d=document.createElement('div');d.className='e';d.innerHTML=`<span class="t">${tm()}</span><span class="m ${t}">${esc(m)}</span>`;this.elLog.appendChild(d);this.elLog.scrollTop=this.elLog.scrollHeight}
   clearLogs():void{this.elLog.innerHTML=`<div class="empty">${this.t('cd')}</div>`}
