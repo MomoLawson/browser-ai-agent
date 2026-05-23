@@ -91,6 +91,8 @@ npm run build:extension # → dist-extension/ (Chrome Extension)
 ## Acknowledgments
 
 This project draws significant inspiration from [opencode](https://github.com/anomalyco/opencode), particularly its:
+- Core architecture and agent loop design
+- File system abstraction patterns
 - Tool description format (`edit.txt`, `read.txt`, `write.txt`, etc.)
 - Multi-strategy text replacement engine (9 replacer strategies for robust edit matching)
 - Clean prompt design and tool usage patterns
