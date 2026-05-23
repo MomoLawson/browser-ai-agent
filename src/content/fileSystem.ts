@@ -232,8 +232,8 @@ async function grepRecursive(
   if (results.length >= max) return
   for await (const entry of dirHandle.values()) {
     if (results.length >= max) return
+    const fullPath = prefix ? `${prefix}/${entry.name}` : entry.name
     if (entry.kind === 'file') {
-      const fullPath = prefix ? `${prefix}/${entry.name}` : entry.name
       try {
         const file = await (entry as FileSystemFileHandle).getFile()
         const text = await file.text()

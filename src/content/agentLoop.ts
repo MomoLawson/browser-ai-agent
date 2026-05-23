@@ -27,7 +27,7 @@ import {
 // ============================================================
 
 export interface ToolCall {
-  type: 'read_file' | 'write_file' | 'edit_file' | 'list_files' | 'search_code'
+  type: 'read_file' | 'write_file' | 'edit_file' | 'list_files' | 'search_code' | 'grep_code'
   filePath?: string
   content?: string
   newContent?: string
@@ -213,6 +213,12 @@ export class AgentLoop {
       }
     }
 
+    // [grep: pattern] — 文件内容搜索
+    const grepMatch = content.match(/\[(?:grep|搜索内容)[：:]\s*(.+?)\]/)
+    if (grepMatch) {
+      tools.push({ type: 'grep_code', pattern: grepMatch[1].trim(), confidence: 0.95 })
+    }
+
     // [list] 或 [列出文件] — 在文本中出现即可
     if (/\[(?:list|列出|文件列表)\]/.test(content)) {
       tools.push({ type: 'list_files', confidence: 0.95 })
@@ -380,23 +386,22 @@ export class AgentLoop {
 
         case 'search_code': {
           if (!tool.pattern) throw new Error('未指定搜索模式')
-          // 判断是文件名搜索还是内容搜索
-          if (tool.pattern.includes('*') || tool.pattern.includes('?') || /\.\w+$/.test(tool.pattern)) {
-            // glob 模式 → 文件名搜索
-            this.options.onLog('info', `🔍 搜索文件: ${tool.pattern}`)
-            const files = await searchFiles(this.dirHandle, tool.pattern)
-            const result = files.length > 0
-              ? `找到 ${files.length} 个匹配文件:\n${files.map(f=>`  ${f}`).join('\n')}`
-              : `未找到匹配 "${tool.pattern}" 的文件。`
-            this.options.injectText(result)
-            this.options.onLog('success', `搜索完成: ${files.length} 个文件`)
-          } else {
-            // 内容搜索 (grep)
-            this.options.onLog('info', `🔎 grep: ${tool.pattern}`)
-            const result = await grepFiles(this.dirHandle, tool.pattern)
-            this.options.injectText(result)
-            this.options.onLog('success', 'grep 完成')
-          }
+          this.options.onLog('info', `🔍 搜索文件: ${tool.pattern}`)
+          const files = await searchFiles(this.dirHandle, tool.pattern)
+          const result = files.length > 0
+            ? `找到 ${files.length} 个匹配文件:\n${files.map(f=>`  ${f}`).join('\n')}`
+            : `未找到匹配 "${tool.pattern}" 的文件。`
+          this.options.injectText(result)
+          this.options.onLog('success', `搜索完成: ${files.length} 个文件`)
+          break
+        }
+
+        case 'grep_code': {
+          if (!tool.pattern) throw new Error('未指定搜索模式')
+          this.options.onLog('info', `🔎 grep: ${tool.pattern}`)
+          const result = await grepFiles(this.dirHandle, tool.pattern)
+          this.options.injectText(result)
+          this.options.onLog('success', 'grep 完成')
           break
         }
       }
@@ -434,7 +439,8 @@ export class AgentLoop {
       case 'write_file': return `写入 ${tool.filePath}`
       case 'edit_file': return `编辑 ${tool.filePath}`
       case 'list_files': return '列出项目文件'
-      case 'search_code': return `搜索 ${tool.pattern}`
+      case 'search_code': return `搜索文件 ${tool.pattern}`
+      case 'grep_code': return `搜索内容 ${tool.pattern}`
     }
   }
 
