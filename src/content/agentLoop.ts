@@ -65,6 +65,7 @@ export class AgentLoop {
   private running = false
   private lastMessageCount = 0
   private lastContentHash = ''
+  private processedTexts = new Set<string>() // 已处理过的文本指纹，防止流式重复处理
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private pendingTasks: Array<() => Promise<void>> = []
   private isProcessing = false
@@ -136,15 +137,28 @@ export class AgentLoop {
       const contentChanged = currentHash !== this.lastContentHash
 
       if (aiMessages.length > this.lastMessageCount || contentChanged) {
-        // 获取新消息（根据数或内容变化）
-        const newMessages = aiMessages.slice(this.lastMessageCount)
-        this.lastMessageCount = aiMessages.length
+        // 获取新消息：增量的新消息 或 内容变化的最后一条
+        let newMessages: typeof aiMessages
+        if (aiMessages.length > this.lastMessageCount) {
+          newMessages = aiMessages.slice(this.lastMessageCount)
+          this.lastMessageCount = aiMessages.length
+        } else {
+          // 消息数不变但内容变了（流式更新）→ 重新处理最后一条
+          newMessages = aiMessages.slice(-1)
+        }
         this.lastContentHash = currentHash
         if (newMessages.length > 0) this.options.onLog('info', `📩 检测到 ${newMessages.length} 条新 AI 消息`)
 
         for (const msg of newMessages) {
+          // 跳过已处理过的文本指纹，防止流式反复处理同一批工具
+          const fp = msg.content.substring(0, 500)
+          if (this.processedTexts.has(fp)) {
+            console.log('[BAI] 跳过已处理的文本指纹')
+            continue
+          }
           console.log('[BAI Agent] AI消息内容('+msg.content.length+'字符):', msg.content.substring(0, 200))
-          await this.analyzeAndExecute(msg.content)
+          const hadTools = await this.analyzeAndExecute(msg.content)
+          if (hadTools) this.processedTexts.add(fp)
         }
       } else if (aiMessages.length === 0 && this.lastMessageCount === 0) {
         // 首次轮询没找到消息 — 只报一次
@@ -160,12 +174,17 @@ export class AgentLoop {
   // 工具调用分析
   // ============================================================
 
-  private async analyzeAndExecute(content: string): Promise<void> {
-    // 内容太短不可能包含有效工具调用
-    if (content.length < 20) return
+  /** 返回值表示是否执行了任何工具（含失败） */
+  private async analyzeAndExecute(content: string): Promise<boolean> {
+    if (content.length < 5) return false
 
     const tools = this.detectToolCalls(content)
-    if (tools.length === 0) return
+    if (tools.length === 0) {
+      if (content.includes('[list]') || content.includes('[read:') || content.includes('[edit:')) {
+        console.log('[BAI] ⚠️ 工具标记存在但 detectToolCalls 未识别:', JSON.stringify(content.substring(0, 300)))
+      }
+      return false
+    }
 
     let hasOutput = false
     for (const tool of tools) {
@@ -189,6 +208,7 @@ export class AgentLoop {
       console.log('[BAI Agent] 所有工具执行完毕，自动发送')
       this.options.sendMessage()
     }
+    return hasOutput
   }
 
   /**
@@ -201,6 +221,7 @@ export class AgentLoop {
    */
   private detectToolCalls(content: string): ToolCall[] {
     const tools: ToolCall[] = []
+    console.log('[BAI] detectToolCalls, len='+content.length+', contains [list]:', content.includes('[list]'))
 
     // 也扫描代码块内部（AI 可能把工具放在 ``` 代码块里）
     const codeBlocks = content.match(/```[\s\S]*?```/g) || []
@@ -476,6 +497,7 @@ export class AgentLoop {
   /** 重置消息计数器（切换对话时使用） */
   resetMessageCount(): void {
     this.lastMessageCount = 0
+    this.processedTexts.clear()
   }
 }
 
