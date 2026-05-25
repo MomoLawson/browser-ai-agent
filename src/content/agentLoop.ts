@@ -72,7 +72,7 @@ export class AgentLoop {
   private running = false
   private lastMessageCount = 0
   private lastContentHash = ''
-  private lastExecMs = 0 // 上次执行工具的时间戳（ms），防流式反复执行
+  private lastToolSig = '' // 上次检测到的 "msgIdx:toolsig"，内容增长但工具相同时跳过
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private pendingTasks: Array<() => Promise<void>> = []
   private isProcessing = false
@@ -163,8 +163,7 @@ export class AgentLoop {
           const msg = newMessages[i]
           const msgIdx = startIdx + i
           console.log('[BAI Agent] AI消息内容('+msg.content.length+'字符, idx='+msgIdx+'):', msg.content.substring(0, 200))
-          const hadTools = await this.analyzeAndExecute(msg.content)
-          if (hadTools) this.lastExecMs = Date.now()
+          await this.analyzeAndExecute(msg.content, msgIdx)
         }
       } else if (aiMessages.length === 0 && this.lastMessageCount === 0) {
         // 首次轮询没找到消息 — 只报一次
@@ -181,7 +180,7 @@ export class AgentLoop {
   // ============================================================
 
   /** 返回值表示是否执行了任何工具（含失败） */
-  private async analyzeAndExecute(content: string): Promise<boolean> {
+  private async analyzeAndExecute(content: string, msgIdx = -1): Promise<boolean> {
     if (content.length < 5) return false
 
     const tools = this.detectToolCalls(content)
@@ -192,12 +191,13 @@ export class AgentLoop {
       return false
     }
 
-    // 流式防抖：1 秒内不重复执行工具
-    const now = Date.now()
-    if (now - this.lastExecMs < 1000) {
-      console.log('[BAI] 跳过流式重复执行 (cooldown)')
+    // 工具签名防重：同一条消息内容增长但工具集合不变时跳过
+    const sig = `${msgIdx}:${tools.map(t => `${t.type}:${t.todoAction || ''}`).sort().join(',')}`
+    if (sig && sig === this.lastToolSig) {
+      console.log('[BAI] 跳过已有工具签名:', sig)
       return false
     }
+    this.lastToolSig = sig
 
     let hasOutput = false
     for (const tool of tools) {
