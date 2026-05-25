@@ -7,7 +7,7 @@
  *   User Input → Agent Loop → Tool Execution → File System → Result
  */
 import type { FileEntry, AgentStatus, ToolContext } from '../shared/types'
-import { selectProjectFolder, verifyPermission, readDirectoryStructure, readFile, writeFile } from '../content/fileSystem'
+import { selectProjectFolder, verifyPermission, readDirectoryStructure, readFile, writeFile, countFiles } from '../content/fileSystem'
 
 // ============================================================
 // Tool 定义
@@ -81,15 +81,6 @@ const tools: Tool[] = [
     },
   },
 ]
-
-function countFiles(entries: FileEntry[]): number {
-  let count = 0
-  for (const entry of entries) {
-    if (entry.kind === 'file') count++
-    if (entry.children) count += countFiles(entry.children)
-  }
-  return count
-}
 
 // ============================================================
 // Agent Runner

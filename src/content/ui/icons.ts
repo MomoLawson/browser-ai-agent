@@ -15,6 +15,7 @@ const MAP: Record<string, string> = {
   settings: 'fa-solid fa-gear',
   sliders: 'fa-solid fa-sliders',
   check: 'fa-solid fa-check',
+  paperPlane: 'fa-solid fa-paper-plane',
 }
 
 export function fa(name: string): string {

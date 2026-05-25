@@ -9,15 +9,15 @@
  * 3. AI 知道能力 → Agent 监听对话 → 自动执行工具
  */
 import { detectPlatform, getPlatformDisplayName } from './platforms/detector'
-import { createAgentStyles } from './ui/styles'
 import { TriggerButton } from './ui/TriggerButton'
 import { AgentPanel } from './ui/AgentPanel'
 import { AgentLoop } from './agentLoop'
-import { selectProjectFolder, readDirectoryStructure } from './fileSystem'
-import { saveProjectName } from './promptInjector'
-import { saveHandle } from './handleStore'
+import type { FileEntry } from '../shared/types'
+import { selectProjectFolder, readDirectoryStructure, readFile, writeFile, verifyPermission, countFiles } from './fileSystem'
+import { saveHandle, saveProjectName } from './handleStore'
 import { fillInput, appendToInput, simulateSend } from './injectUtils'
 import { loadSettings, resolveLang, buildSystemPrompt, t, type Lang } from './settings'
+import { registerExtensionHandler } from './extension-handler'
 
 let dirHandle: FileSystemDirectoryHandle | null = null
 let trigger: TriggerButton | null = null
@@ -31,7 +31,6 @@ function main(): void {
   const platform = detectPlatform()
   if (!platform) { console.log('[BAI] 不支持'); return }
   console.log(`[BAI] 检测到 ${getPlatformDisplayName(platform)}`)
-  createAgentStyles()
   const tryInject = (n=8) => {
     if (document.body) { createTrigger(); return }
     if (n>0) setTimeout(()=>tryInject(n-1),1500)
@@ -58,9 +57,17 @@ async function openPanel(): Promise<void> {
   }
 
   // 提示词复制到输入框
-  panel!.onCopyToInput = (text: string) => {
+  panel!.onSendPrompt = (text: string) => {
     fillInput(text)
     panel!.addLog('success', 'Prompt filled into input')
+    setTimeout(() => {
+      const sent = simulateSend()
+      if (sent) {
+        panel!.addLog('success', 'Prompt sent to AI')
+      } else {
+        panel!.addLog('warn', 'Could not auto-send, please press Enter')
+      }
+    }, 300)
   }
 
   panel!.onSelectProject = async () => {
@@ -179,25 +186,103 @@ function startAgentLoop(): void {
 }
 
 // ============================================================
-// Chrome Extension
+// Chrome Extension 消息处理器
 // ============================================================
-import { readFile, writeFile, verifyPermission } from './fileSystem'
-if (typeof chrome!=='undefined'&&chrome.runtime?.id) {
-  chrome.runtime.onMessage.addListener((msg:any,_,res)=>{
-    const r=(ok:boolean,d?:any,e?:string)=>res({id:msg.id,success:ok,data:d,error:e})
-    switch(msg.type){
-      case'SELECT_PROJECT':{;(async()=>{try{const f=await selectProjectFolder();if(!f){r(true,null);return}dirHandle=f.handle;projectName=f.name;await saveHandle(f.handle);saveProjectName(f.name);const t=await readDirectoryStructure(f.handle);r(true,{name:f.name,fileCount:countFiles(t),tree:t})}catch(e){r(false,null,(e as Error).message)}})();return true}
-      case'GET_PROJECT_INFO':{if(!dirHandle){r(true,{path:'',fileCount:0});return};(async()=>{try{const t=await readDirectoryStructure(dirHandle!);r(true,{path:dirHandle!.name,fileCount:countFiles(t)})}catch{r(true,{path:dirHandle!.name,fileCount:0})}})();return true}
-      case'EXECUTE_COMMAND':{;(async()=>{try{if(!dirHandle){r(false,null,'请先选择项目');return}if(!await verifyPermission(dirHandle)){r(false,null,'权限失效');return}const c=parseCmd(msg.payload?.cmd||'');const l:Array<{type:string;msg:string}>=[];let t=null,pi=null;switch(c.action){case'list':t=await readDirectoryStructure(dirHandle!);l.push({type:'success',msg:`已列出${countFiles(t)}个文件`});break;case'read':if(!c.filePath){r(false,null,'请指定路径');return}const ct=await readFile(dirHandle!,c.filePath);ci(ct);l.push({type:'info',msg:`读取${c.filePath}(${ct.length}字符)`});break;case'write':if(!c.filePath||c.content===undefined){r(false,null,'请指定路径和内容');return}await writeFile(dirHandle!,c.filePath,c.content);l.push({type:'success',msg:`已写入${c.filePath}`});break;default:l.push({type:'warn',msg:'无法识别'})}pi={name:dirHandle!.name,fileCount:t?countFiles(t):0};r(true,{log:l,tree:t,projectInfo:pi})}catch(e){r(false,null,(e as Error).message)}})();return true}
-    }
-  })
-}
-interface ParsedCmd{action:string;filePath?:string;content?:string}
-function parseCmd(i:string):ParsedCmd{const l=i.toLowerCase().trim();if(l==='list'||l==='ls')return{action:'list'};const rm=l.match(/^(?:read|cat|查看|读取)\s+(\S.+)/);if(rm)return{action:'read',filePath:rm[1].trim()};const wm=i.match(/^(?:write|写入|创建|修改)\s+(\S+)\s*[：:]\s*(.+)/s);if(wm)return{action:'write',filePath:wm[1].trim(),content:wm[2].trim()};return{action:'unknown'}}
-function ci(t:string):void{const s=['#prompt-textarea','div[contenteditable="true"]','textarea#chat-input','.chat-input-editor','textarea'];for(const x of s){const el=document.querySelector<HTMLElement>(x);if(!el)continue;if(el.isContentEditable){el.focus();document.execCommand('insertText',false,t);el.dispatchEvent(new Event('input',{bubbles:true}));return}if(el instanceof HTMLTextAreaElement||el instanceof HTMLInputElement){el.value=t;el.dispatchEvent(new Event('input',{bubbles:true}));return}}}
 
-function countFiles(entries: import('../shared/types').FileEntry[]): number {
-  let c=0;for(const e of entries){if(e.kind==='file')c++;if(e.children)c+=countFiles(e.children)}return c
+registerExtensionHandler({
+  selectProject: async () => {
+    const r = await selectProjectFolder()
+    if (!r) return null
+    dirHandle = r.handle
+    projectName = r.name
+    await saveHandle(r.handle)
+    saveProjectName(r.name)
+    const tree = await readDirectoryStructure(r.handle)
+    afterProjectConnected()
+    return { name: r.name, fileCount: countFiles(tree), tree }
+  },
+
+  getProjectInfo: async () => {
+    if (!dirHandle) return { path: '', fileCount: 0 }
+    const tree = await readDirectoryStructure(dirHandle)
+    return { path: dirHandle.name, fileCount: countFiles(tree) }
+  },
+
+  executeCommand: async (cmd: string) => {
+    if (!dirHandle) throw new Error('请先选择项目')
+    if (!(await verifyPermission(dirHandle))) throw new Error('权限失效')
+
+    const c = parseCmd(cmd)
+    const log: Array<{ type: string; msg: string }> = []
+    let tree: FileEntry[] | undefined
+
+    switch (c.action) {
+      case 'list':
+        tree = await readDirectoryStructure(dirHandle)
+        log.push({ type: 'success', msg: `已列出${countFiles(tree)}个文件` })
+        break
+      case 'read':
+        if (!c.filePath) throw new Error('请指定路径')
+        const ct = await readFile(dirHandle, c.filePath)
+        writeToInput(ct)
+        log.push({ type: 'info', msg: `读取${c.filePath}(${ct.length}字符)` })
+        break
+      case 'write':
+        if (!c.filePath || c.content === undefined) throw new Error('请指定路径和内容')
+        await writeFile(dirHandle, c.filePath, c.content)
+        log.push({ type: 'success', msg: `已写入${c.filePath}` })
+        break
+      default:
+        log.push({ type: 'warn', msg: '无法识别' })
+    }
+
+    return {
+      log,
+      tree,
+      projectInfo: { name: dirHandle.name, fileCount: tree ? countFiles(tree) : 0 },
+    }
+  },
+})
+
+interface ParsedCmd {
+  action: string
+  filePath?: string
+  content?: string
+}
+
+function parseCmd(input: string): ParsedCmd {
+  const lower = input.toLowerCase().trim()
+  if (lower === 'list' || lower === 'ls') return { action: 'list' }
+  const rm = lower.match(/^(?:read|cat|查看|读取)\s+(\S.+)/)
+  if (rm) return { action: 'read', filePath: rm[1].trim() }
+  const wm = input.match(/^(?:write|写入|创建|修改)\s+(\S+)\s*[：:]\s*(.+)/s)
+  if (wm) return { action: 'write', filePath: wm[1].trim(), content: wm[2].trim() }
+  return { action: 'unknown' }
+}
+
+function writeToInput(text: string): void {
+  const sels = [
+    '#prompt-textarea',
+    'div[contenteditable="true"]',
+    'textarea#chat-input',
+    '.chat-input-editor',
+    'textarea',
+  ]
+  for (const sel of sels) {
+    const el = document.querySelector<HTMLElement>(sel)
+    if (!el) continue
+    if (el.isContentEditable) {
+      el.focus()
+      document.execCommand('insertText', false, text)
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+      return
+    }
+    if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
+      el.value = text
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+      return
+    }
+  }
 }
 
 setTimeout(main,500)

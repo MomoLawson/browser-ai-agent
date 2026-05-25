@@ -76,6 +76,24 @@ export async function ensurePermission(
   }
 }
 
+// ============================================================
+// 项目名称持久化（localStorage）
+// ============================================================
+
+const LS_KEY = 'bai_project'
+
+export function saveProjectName(name: string): void {
+  try { localStorage.setItem(LS_KEY, name) } catch {}
+}
+
+export function getSavedProjectName(): string | null {
+  try { return localStorage.getItem(LS_KEY) } catch { return null }
+}
+
+export function clearSavedProject(): void {
+  try { localStorage.removeItem(LS_KEY) } catch {}
+}
+
 /**
  * 从 IndexedDB 中删除保存的 handle
  */

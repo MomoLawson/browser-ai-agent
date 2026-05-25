@@ -21,6 +21,7 @@ import {
   searchFiles,
   grepFiles,
 } from './fileSystem'
+import { countFiles } from './fileSystem'
 import { loadSettings, resolveLang, t, type Lang } from './settings'
 
 // ============================================================
@@ -501,11 +502,3 @@ export class AgentLoop {
   }
 }
 
-function countFiles(entries: FileEntry[]): number {
-  let c = 0
-  for (const e of entries) {
-    if (e.kind === 'file') c++
-    if (e.children) c += countFiles(e.children)
-  }
-  return c
-}

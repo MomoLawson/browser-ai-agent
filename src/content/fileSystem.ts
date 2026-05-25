@@ -275,6 +275,18 @@ export async function fileExists(
   }
 }
 
+/**
+ * 递归计算文件总数
+ */
+export function countFiles(entries: import('../shared/types').FileEntry[]): number {
+  let c = 0
+  for (const e of entries) {
+    if (e.kind === 'file') c++
+    if (e.children) c += countFiles(e.children)
+  }
+  return c
+}
+
 // ============================================================
 // 内部辅助函数
 // ============================================================

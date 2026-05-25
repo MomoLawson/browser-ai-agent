@@ -54,9 +54,9 @@ import { loadSettings, saveSettings, resolveLang, LANG_NAMES, type Lang } from '
 import { fa, renderFA } from './icons'
 type UILang='en-US'|'zh-CN'|'zh-TW'
 const T:Record<UILang,Record<string,string>>={
-  'en-US':{wa:'Waiting for project',se:'Select project',ns:'Not selected',sp:'Send prompt to AI',fi:'Fill input',cp:'Copy',lg:'Logs',cl:'Clear',cd:'Cleared',ch:'Connect a project to see logs',st:'Settings',ll:'Language',cs:'Close',fd:'Filled input',co:'Copied',pj:'Project',fl:'Files',ls:'Listening',pr:'Prompt ready - copy and send'},
-  'zh-CN':{wa:'等待连接项目',se:'选择项目',ns:'未选择',sp:'发送提示词给 AI',fi:'填入输入框',cp:'复制',lg:'操作日志',cl:'清除',cd:'已清除',ch:'连接项目后这里显示操作记录',st:'设置',ll:'界面语言',cs:'关闭',fd:'已填入',co:'已复制',pj:'项目',fl:'文件',ls:'监听中',pr:'提示词已就绪 - 复制后发送'},
-  'zh-TW':{wa:'等待連接專案',se:'選擇專案',ns:'未選擇',sp:'發送提示詞給 AI',fi:'填入輸入框',cp:'複製',lg:'操作日誌',cl:'清除',cd:'已清除',ch:'連接專案後這裡顯示操作記錄',st:'設定',ll:'介面語言',cs:'關閉',fd:'已填入',co:'已複製',pj:'專案',fl:'檔案',ls:'監聽中',pr:'提示詞已就緒 - 複製後傳送'},
+  'en-US':{wa:'Waiting for project',se:'Select project',ns:'Not selected',sp:'Send prompt to AI',sa:'Send to AI',cp:'Copy',lg:'Logs',cl:'Clear',cd:'Cleared',ch:'Connect a project to see logs',st:'Settings',ll:'Language',cs:'Close',fd:'Sent to AI',co:'Copied',pj:'Project',fl:'Files',ls:'Listening',pr:'Prompt ready - copy and send'},
+  'zh-CN':{wa:'等待连接项目',se:'选择项目',ns:'未选择',sp:'发送提示词给 AI',sa:'发送给 AI',cp:'复制',lg:'操作日志',cl:'清除',cd:'已清除',ch:'连接项目后这里显示操作记录',st:'设置',ll:'界面语言',cs:'关闭',fd:'已发送',co:'已复制',pj:'项目',fl:'文件',ls:'监听中',pr:'提示词已就绪 - 复制后发送'},
+  'zh-TW':{wa:'等待連接專案',se:'選擇專案',ns:'未選擇',sp:'發送提示詞給 AI',sa:'發送給 AI',cp:'複製',lg:'操作日誌',cl:'清除',cd:'已清除',ch:'連接專案後這裡顯示操作記錄',st:'設定',ll:'介面語言',cs:'關閉',fd:'已發送',co:'已複製',pj:'專案',fl:'檔案',ls:'監聽中',pr:'提示詞已就緒 - 複製後傳送'},
 }
 type K=keyof typeof T['en-US']
 
@@ -68,7 +68,7 @@ export class AgentPanel{
   private elStgBtn!:HTMLButtonElement;private elStgPnl!:HTMLElement;private elLang!:HTMLSelectElement
   private elST!:HTMLElement;private elDot!:HTMLElement
   onSelectProject?:()=>Promise<{name:string;fileCount:number}|null>
-  onClose?:()=>void;onCopyToInput?:(t:string)=>void;onSettingsChange?:()=>void
+  onClose?:()=>void;onSendPrompt?:(t:string)=>void;onSettingsChange?:()=>void
   constructor(){const s=loadSettings();this.lang=resolveLang(s)as UILang;this.host=document.createElement('div');document.body.appendChild(this.host);this.shadow=this.host.attachShadow({mode:'open'});this.render();this.bindEvents()}
   private t(k:K){return T[this.lang][k]||T['en-US'][k]||k}
   private $(i:string){return this.shadow.getElementById(i)!}
@@ -80,7 +80,7 @@ export class AgentPanel{
 <div class="body">
   <div class="status-bar"><span class="dot idle" id="dot"></span><span class="status" id="st">${this.t('wa')}</span></div>
   <div class="row"><button class="btn btn-p" id="sel"><i class="${fa('folderOpen')}"></i>${this.t('se')}</button><div class="info" id="info"><span class="lbl">${this.t('ns')}</span></div></div>
-  <div class="pblock hidden" id="pb"><div class="phdr"><i class="${fa('messageSquare')}"></i>${this.t('sp')}</div><div class="ptext" id="pt"></div><div class="pacts"><button class="btn btn-g" id="ci"><i class="${fa('clipboardPaste')}"></i>${this.t('fi')}</button><button class="btn btn-o" id="cc"><i class="${fa('copy')}"></i>${this.t('cp')}</button></div></div>
+  <div class="pblock hidden" id="pb"><div class="phdr"><i class="${fa('messageSquare')}"></i>${this.t('sp')}</div><div class="ptext" id="pt"></div><div class="pacts"><button class="btn btn-g" id="ci"><i class="${fa('paperPlane')}"></i>${this.t('sa')}</button><button class="btn btn-o" id="cc"><i class="${fa('copy')}"></i>${this.t('cp')}</button></div></div>
   <div class="log"><div class="log-h"><span class="log-t"><i class="${fa('list')}"></i>${this.t('lg')}</span><button class="btn btn-o" id="clr" style="font-size:11px;padding:3px 8px"><i class="${fa('trash2')}"></i>${this.t('cl')}</button></div><div class="log-b" id="lb"><div class="empty">${this.t('ch')}</div></div></div>
 </div></div>
 <div class="sp hidden" id="sp"><h3><i class="${fa('sliders')}"></i>${this.t('st')}</h3><label>${this.t('ll')}</label><select id="langSel"></select><button class="btn btn-p sp-close" id="spCl"><i class="${fa('check')}"></i>${this.t('cs')}</button></div>`
@@ -96,7 +96,7 @@ export class AgentPanel{
   private rui(){
     this.elST.textContent=this.t('wa')
     this.elSelect.innerHTML=`<i class="${fa('folderOpen')}"></i>${this.t('se')}`
-    this.$('ci').innerHTML=`<i class="${fa('clipboardPaste')}"></i>${this.t('fi')}`
+    this.$('ci').innerHTML=`<i class="${fa('paperPlane')}"></i>${this.t('sa')}`
     this.$('cc').innerHTML=`<i class="${fa('copy')}"></i>${this.t('cp')}`
     this.$('clr').innerHTML=`<i class="${fa('trash2')}"></i>${this.t('cl')}`
     const p=this.shadow.querySelector('.phdr');if(p)p.innerHTML=`<i class="${fa('messageSquare')}"></i>${this.t('sp')}`
@@ -113,7 +113,7 @@ export class AgentPanel{
     this.$('ov').addEventListener('click',e=>{if(e.target===e.currentTarget)this.onClose?.()})
     this.elSelect.addEventListener('click',async()=>{if(!this.onSelectProject)return;this.elSelect.disabled=true;this.elSelect.textContent='...';try{const r=await this.onSelectProject();if(r)this.setProjectInfo(r.name,r.fileCount)}catch(e){this.addLog('error',`x ${(e as Error).message}`)}finally{this.elSelect.disabled=false;this.elSelect.innerHTML=`<i class="${fa('folderOpen')}"></i>${this.t('se')}`;setTimeout(()=>renderFA(this.shadow),50)}})
     this.$('clr').addEventListener('click',()=>this.clearLogs())
-    this.$('ci').addEventListener('click',()=>{if(!this.elPT.textContent)return;this.onCopyToInput?.(this.elPT.textContent);this.addLog('success',this.t('fd'))})
+    this.$('ci').addEventListener('click',()=>{if(!this.elPT.textContent)return;this.onSendPrompt?.(this.elPT.textContent);this.addLog('success',this.t('fd'))})
     this.$('cc').addEventListener('click',()=>{const t=this.elPT.textContent;if(!t)return;navigator.clipboard.writeText(t).then(()=>this.addLog('success',this.t('co')))})
     this.elStgBtn.addEventListener('click',()=>{this.elStgPnl.classList.toggle('hidden')})
     this.elLang.addEventListener('change',()=>{const s=loadSettings();s.language=this.elLang.value as Lang;saveSettings(s);this.lang=resolveLang(s)as UILang;this.rui()})
