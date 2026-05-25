@@ -212,20 +212,21 @@ export class AgentLoop {
 
       // Markdown 渲染后语言标记可能是 `[edit: path]`、`[list]`（作为 info string）
       if (lang.startsWith('[')) {
-        // 无路径的标记: [list] [grep: ...] [search: ...]
-        const bareMatch = lang.match(/\[(list|列出|文件列表|grep|搜索内容|search|搜索)\]/)
-        if (bareMatch) {
-          if (bareMatch[1] === 'list' || bareMatch[1] === '列出' || bareMatch[1] === '文件列表')
-            tools.push({ type: 'list_files', confidence: 0.95 })
-          continue
-        }
-        // 带路径: [edit: path] [read: path] [write: path]
-        const toolInTag = lang.match(/\[(edit|read|write)[：:]\s*([^\]]+)\]/)
+        // 带路径: [edit: path] [read: path] [write: path] [search: ...] [grep: ...]
+        const toolInTag = lang.match(/\[(edit|read|write|search|grep|搜索|搜索内容)[：:]\s*([^\]]+)\]/)
         if (toolInTag) {
           const fp = toolInTag[2].trim()
-          if (toolInTag[1] === 'edit') tools.push(...this.detectPatterns(`[edit: ${fp}]\n${inner}\n[/edit]`))
-          else if (toolInTag[1] === 'read') tools.push({ type: 'read_file', filePath: fp, confidence: 0.9 })
-          else if (toolInTag[1] === 'write') tools.push(...this.detectPatterns(`[write: ${fp}]\n${inner}`))
+          const t = toolInTag[1]
+          if (t === 'edit') tools.push(...this.detectPatterns(`[edit: ${fp}]\n${inner}\n[/edit]`))
+          else if (t === 'read') tools.push({ type: 'read_file', filePath: fp, confidence: 0.9 })
+          else if (t === 'write') tools.push(...this.detectPatterns(`[write: ${fp}]\n${inner}`))
+          else if (t === 'search' || t === '搜索') { if (fp.length >= 2) tools.push({ type: 'search_code', pattern: fp, confidence: 0.9 }) }
+          else if (t === 'grep' || t === '搜索内容') { if (fp.length >= 2) tools.push({ type: 'grep_code', pattern: fp, confidence: 0.9 }) }
+          continue
+        }
+        // 无路径的标记: [list]
+        if (/\[(?:list|列出|文件列表)\]/.test(lang)) {
+          tools.push({ type: 'list_files', confidence: 0.95 })
           continue
         }
       }
@@ -272,8 +273,8 @@ export class AgentLoop {
       if (p.length >= 2) tools.push({ type: 'grep_code', pattern: p, confidence: 0.95 })
     }
 
-    // [list] 或 [列出文件] — 必须位于行首（前面是空白符或行开头）
-    if (/(?:^|\s)\[(?:list|列出|文件列表)\]/.test(content)) {
+    // [list] 或 [列出文件]（可出现在回复中的任意位置）
+    if (/\[(?:list|列出|文件列表)\]/.test(content)) {
       tools.push({ type: 'list_files', confidence: 0.95 })
     }
 
