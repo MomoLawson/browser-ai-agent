@@ -60,11 +60,11 @@ async function openPanel(): Promise<void> {
   // 提示词复制到输入框
   panel!.onSendPrompt = (text: string) => {
     fillInput(text)
-    panel!.addLog('success', 'Prompt filled into input')
     setTimeout(() => {
       const sent = simulateSend()
       if (sent) {
-        panel!.addLog('success', 'Prompt sent to AI')
+        // 发送后关闭面板，agent 在后台继续运行
+        panel?.destroy(); panel = null; trigger?.show()
       } else {
         panel!.addLog('warn', 'Could not auto-send, please press Enter')
       }

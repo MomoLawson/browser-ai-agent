@@ -388,7 +388,7 @@ export class AgentLoop {
           this.options.onLog('info', '📂 正在列出项目文件...')
           const tree = await readDirectoryStructure(this.dirHandle)
           const summary = this.formatFileTree(tree)
-          this.options.injectText(summary)
+          this.options.injectText(`[Tool: List]\n\`\`\`\n${stripMarkdownTicks(summary)}\n\`\`\`\n`)
           this.options.onLog('success', `✅ 已列出 ${countFiles(tree)} 个文件`)
           break
         }
@@ -397,8 +397,7 @@ export class AgentLoop {
           if (!tool.filePath) throw new Error('未指定文件路径')
           this.options.onLog('info', `📖 正在读取: ${tool.filePath}`)
           const content = await readFile(this.dirHandle, tool.filePath)
-          const injected = `\`\`\`\n// ${tool.filePath}\n${content}\n\`\`\`\n`
-          this.options.injectText(injected)
+          this.options.injectText(`[Tool: Read]\n\`${tool.filePath}\`\n\`\`\`\n${content}\n\`\`\`\n`)
           this.options.onLog('success', `✅ 已读取 ${tool.filePath} (${content.length} 字符)`)
           break
         }
@@ -407,8 +406,7 @@ export class AgentLoop {
           if (!tool.filePath || !tool.content || !tool.newContent) throw new Error('缺少路径或内容')
           this.options.onLog('info', `✏️ 正在编辑: ${tool.filePath}`)
           await editFile(this.dirHandle, tool.filePath, tool.content, tool.newContent)
-          const result = `✅ 文件已编辑: ${tool.filePath}`
-          this.options.injectText(result)
+          this.options.injectText(`[Tool: Edit]\n\`${tool.filePath}\` ✅ Edited`)
           this.options.onLog('success', `✅ 已编辑 ${tool.filePath}`)
           break
         }
@@ -418,14 +416,13 @@ export class AgentLoop {
           const exists = await fileExists(this.dirHandle, tool.filePath)
           if (exists) {
             throw new Error(
-              `文件 ${tool.filePath} 已存在。请使用 [edit: ${tool.filePath}] 修改，` +
+              `\`${tool.filePath}\` 已存在。请使用 [edit: ${tool.filePath}] 修改，` +
               `先 [read: ${tool.filePath}] 确认内容后再 edit。`
             )
           }
           this.options.onLog('info', `📝 正在创建: ${tool.filePath}`)
           await writeFile(this.dirHandle, tool.filePath, tool.content)
-          const result = `✅ 文件已创建: ${tool.filePath}`
-          this.options.injectText(result)
+          this.options.injectText(`[Tool: Write]\n\`${tool.filePath}\` ✅ Created`)
           this.options.onLog('success', `✅ 已创建 ${tool.filePath}`)
           break
         }
@@ -435,8 +432,8 @@ export class AgentLoop {
           this.options.onLog('info', `🔍 搜索文件: ${tool.pattern}`)
           const files = await searchFiles(this.dirHandle, tool.pattern)
           const result = files.length > 0
-            ? `找到 ${files.length} 个匹配文件:\n${files.map(f=>`  ${f}`).join('\n')}`
-            : `未找到匹配 "${tool.pattern}" 的文件。`
+            ? `[Tool: Search]\nPattern: ${tool.pattern}\n${files.map(f=>`  ${f}`).join('\n')}`
+            : `[Tool: Search]\nPattern: ${tool.pattern}\n(no matches)`
           this.options.injectText(result)
           this.options.onLog('success', `搜索完成: ${files.length} 个文件`)
           break
@@ -445,8 +442,8 @@ export class AgentLoop {
         case 'grep_code': {
           if (!tool.pattern) throw new Error('未指定搜索模式')
           this.options.onLog('info', `🔎 grep: ${tool.pattern}`)
-          const result = await grepFiles(this.dirHandle, tool.pattern)
-          this.options.injectText(result)
+          const raw = await grepFiles(this.dirHandle, tool.pattern)
+          this.options.injectText(`[Tool: Grep]\nPattern: ${tool.pattern}\n${raw}`)
           this.options.onLog('success', 'grep 完成')
           break
         }
@@ -461,10 +458,9 @@ export class AgentLoop {
   // ============================================================
 
   private formatFileTree(entries: FileEntry[]): string {
-    if (entries.length === 0) return '📁 项目为空，没有文件'
-    const lines: string[] = ['📁 项目文件结构:\n```']
+    if (entries.length === 0) return '(empty)'
+    const lines: string[] = []
     this.buildTreeLines(entries, lines, '')
-    lines.push('```')
     return lines.join('\n')
   }
 
@@ -502,3 +498,7 @@ export class AgentLoop {
   }
 }
 
+/** 移除 markdown 代码块标记（避免嵌套 ```） */
+function stripMarkdownTicks(s: string): string {
+  return s.replace(/`{3,}/g, '')
+}
