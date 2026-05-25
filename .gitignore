@@ -6,3 +6,4 @@ dist/
 .sisyphus/
 .deepseek/
 AGENTS.md
+.claude/
