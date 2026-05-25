@@ -334,6 +334,9 @@ function renderDiffOnPage(type: 'edit' | 'write', filePath: string, diffText: st
   injectDiffCSS()
   const msgEl = findLastAIMessage()
   if (!msgEl) return
+  // 替换已有 diff 卡片，避免流式输出重复渲染
+  const existing = msgEl.querySelector('.bai-df')
+  if (existing) existing.remove()
 
   const icon = type === 'edit' ? '✏️' : '📝'
   const label = type === 'edit' ? 'Edited' : 'Created'
@@ -381,6 +384,9 @@ function renderTodoOnPage(todos: Array<{id:number;text:string;done:boolean}>, me
   injectDiffCSS()
   const msgEl = findLastAIMessage()
   if (!msgEl) return
+  // 替换已有 todo 卡片，避免流式输出重复渲染
+  const existing = msgEl.querySelector('.bai-td')
+  if (existing) existing.remove()
 
   const el = document.createElement('div')
   el.className = 'bai-td'

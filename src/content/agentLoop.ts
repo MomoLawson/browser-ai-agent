@@ -73,6 +73,7 @@ export class AgentLoop {
   private lastMessageCount = 0
   private lastContentHash = ''
   private processedTexts = new Set<string>() // 已处理过的文本指纹，防止流式重复处理
+  private executedToolKeys = new Set<string>() // 已执行的工具标识 "msgIdx:type:action"，防流式重复
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private pendingTasks: Array<() => Promise<void>> = []
   private isProcessing = false
@@ -145,27 +146,32 @@ export class AgentLoop {
 
       if (aiMessages.length > this.lastMessageCount || contentChanged) {
         // 获取新消息：增量的新消息 或 内容变化的最后一条
+        let startIdx: number
         let newMessages: typeof aiMessages
         if (aiMessages.length > this.lastMessageCount) {
-          newMessages = aiMessages.slice(this.lastMessageCount)
+          startIdx = this.lastMessageCount
+          newMessages = aiMessages.slice(startIdx)
           this.lastMessageCount = aiMessages.length
         } else {
           // 消息数不变但内容变了（流式更新）→ 重新处理最后一条
+          startIdx = aiMessages.length - 1
           newMessages = aiMessages.slice(-1)
         }
         this.lastContentHash = currentHash
-        if (newMessages.length > 0) this.options.onLog('info', `📩 检测到 ${newMessages.length} 条新 AI 消息`)
+        if (newMessages.length > 0) this.options.onLog('info', `📩 检测到 AI 新消息`)
 
-        for (const msg of newMessages) {
-          // 跳过已处理过的文本指纹，防止流式反复处理同一批工具
-          const fp = msg.content.substring(0, 500)
-          if (this.processedTexts.has(fp)) {
-            console.log('[BAI] 跳过已处理的文本指纹')
-            continue
+        for (let i = 0; i < newMessages.length; i++) {
+          const msg = newMessages[i]
+          const msgIdx = startIdx + i
+          console.log('[BAI Agent] AI消息内容('+msg.content.length+'字符, idx='+msgIdx+'):', msg.content.substring(0, 200))
+          const hadTools = await this.analyzeAndExecute(msg.content, msgIdx)
+          if (hadTools) {
+            // 记录工具标识，后续流式更新不再重复执行
+            const detected = this.detectToolCalls(msg.content)
+            for (const t of detected) {
+              this.executedToolKeys.add(`${msgIdx}:${t.type}:${t.todoAction || ''}`)
+            }
           }
-          console.log('[BAI Agent] AI消息内容('+msg.content.length+'字符):', msg.content.substring(0, 200))
-          const hadTools = await this.analyzeAndExecute(msg.content)
-          if (hadTools) this.processedTexts.add(fp)
         }
       } else if (aiMessages.length === 0 && this.lastMessageCount === 0) {
         // 首次轮询没找到消息 — 只报一次
@@ -182,7 +188,7 @@ export class AgentLoop {
   // ============================================================
 
   /** 返回值表示是否执行了任何工具（含失败） */
-  private async analyzeAndExecute(content: string): Promise<boolean> {
+  private async analyzeAndExecute(content: string, msgIdx = -1): Promise<boolean> {
     if (content.length < 5) return false
 
     const tools = this.detectToolCalls(content)
@@ -193,8 +199,14 @@ export class AgentLoop {
       return false
     }
 
+    // 过滤掉已在此消息中执行过的工具（防流式反复执行）
+    const freshTools = msgIdx >= 0
+      ? tools.filter(t => !this.executedToolKeys.has(`${msgIdx}:${t.type}:${t.todoAction || ''}`))
+      : tools
+    if (freshTools.length === 0) return false
+
     let hasOutput = false
-    for (const tool of tools) {
+    for (const tool of freshTools) {
       if (tool.confidence < 0.6) continue
 
       this.options.onLog('info', `🔍 检测到 AI 需要操作: ${this.describeTool(tool)}`)
@@ -588,6 +600,7 @@ export class AgentLoop {
   resetMessageCount(): void {
     this.lastMessageCount = 0
     this.processedTexts.clear()
+    this.executedToolKeys.clear()
   }
 }
 
