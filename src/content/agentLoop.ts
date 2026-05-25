@@ -158,12 +158,15 @@ export class AgentLoop {
   // ============================================================
 
   private async analyzeAndExecute(content: string): Promise<void> {
+    // 内容太短不可能包含有效工具调用
+    if (content.length < 20) return
+
     const tools = this.detectToolCalls(content)
     if (tools.length === 0) return
 
     let hasOutput = false
     for (const tool of tools) {
-      if (tool.confidence < 0.4) continue
+      if (tool.confidence < 0.6) continue
 
       this.options.onLog('info', `🔍 检测到 AI 需要操作: ${this.describeTool(tool)}`)
 
@@ -250,11 +253,11 @@ export class AgentLoop {
 
     // === 模式 1：显式结构化标记 ===
 
-    // [read: path] 或 [读取: path] — 支持一行多个
+    // [read: path] 或 [读取: path] — 支持一行多个，路径至少 3 字符
     const readMatches = content.matchAll(/\[(?:read|读取)[：:]\s*([^\]]+)\]/g)
     for (const m of readMatches) {
       const fp = m[1].trim()
-      if (fp.includes('/') || fp.includes('.') || fp.includes('\\')) {
+      if (fp.length >= 3 && (fp.includes('/') || fp.includes('.') || fp.includes('\\'))) {
         tools.push({ type: 'read_file', filePath: fp, confidence: 0.95 })
       }
     }
@@ -262,11 +265,12 @@ export class AgentLoop {
     // [grep: pattern] — 文件内容搜索
     const grepMatches = content.matchAll(/\[(?:grep|搜索内容)[：:]\s*(.+?)\]/g)
     for (const grepMatch of grepMatches) {
-      tools.push({ type: 'grep_code', pattern: grepMatch[1].trim(), confidence: 0.95 })
+      const p = grepMatch[1].trim()
+      if (p.length >= 2) tools.push({ type: 'grep_code', pattern: p, confidence: 0.95 })
     }
 
-    // [list] 或 [列出文件] — 在文本中出现即可
-    if (/\[(?:list|列出|文件列表)\]/.test(content)) {
+    // [list] 或 [列出文件] — 必须位于行首（前面是空白符或行开头）
+    if (/(?:^|\s)\[(?:list|列出|文件列表)\]/.test(content)) {
       tools.push({ type: 'list_files', confidence: 0.95 })
     }
 
@@ -322,45 +326,13 @@ export class AgentLoop {
       })
     }
 
-    // [search: pattern] 或 [搜索: pattern]
+    // [search: pattern] 或 [搜索: pattern]（pattern 至少 2 字符）
     const searchMatches = content.matchAll(/\[(?:search|搜索)[：:]\s*([^\]]+)\]/g)
     for (const searchMatch of searchMatches) {
-      tools.push({
-        type: 'search_code',
-        pattern: searchMatch[1].trim(),
-        confidence: 0.9,
-      })
-    }
-
-    // === 模式 2：自然语言模式（低置信度） ===
-
-    // "让我看看/读取/打开 xxx 文件"
-    const nlRead = content.match(/(?:让我看看|让我读取|读取|打开|查看)\s*[`'"](.+?)[`'"]/)
-    if (nlRead && tools.length === 0) {
-      tools.push({
-        type: 'read_file',
-        filePath: nlRead[1].trim(),
-        confidence: 0.6,
-      })
-    }
-
-    // "让我看看/查看目录结构/项目结构/文件列表"
-    if (
-      /(?:目录结构|文件列表|项目结构|项目文件)/.test(content) &&
-      /(?:看看|查看|显示|列出)/.test(content) &&
-      tools.length === 0
-    ) {
-      tools.push({ type: 'list_files', confidence: 0.5 })
-    }
-
-    // "我来修改/写入/创建 xxx 文件"
-    const nlWrite = content.match(/(?:我来修改|我来写入|我来创建|写入|创建|修改)\s*[`'"](.+?)[`'"]/)
-    if (nlWrite && tools.length === 0) {
-      tools.push({
-        type: 'write_file',
-        filePath: nlWrite[1].trim(),
-        confidence: 0.4,
-      })
+      const p = searchMatch[1].trim()
+      if (p.length >= 2) {
+        tools.push({ type: 'search_code', pattern: p, confidence: 0.9 })
+      }
     }
 
     return tools
