@@ -72,8 +72,7 @@ export class AgentLoop {
   private running = false
   private lastMessageCount = 0
   private lastContentHash = ''
-  private processedTexts = new Set<string>() // 已处理过的文本指纹，防止流式重复处理
-  private executedToolKeys = new Set<string>() // 已执行的工具标识 "msgIdx:type:action"，防流式重复
+  private lastExecMs = 0 // 上次执行工具的时间戳（ms），防流式反复执行
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private pendingTasks: Array<() => Promise<void>> = []
   private isProcessing = false
@@ -164,14 +163,8 @@ export class AgentLoop {
           const msg = newMessages[i]
           const msgIdx = startIdx + i
           console.log('[BAI Agent] AI消息内容('+msg.content.length+'字符, idx='+msgIdx+'):', msg.content.substring(0, 200))
-          const hadTools = await this.analyzeAndExecute(msg.content, msgIdx)
-          if (hadTools) {
-            // 记录工具标识，后续流式更新不再重复执行
-            const detected = this.detectToolCalls(msg.content)
-            for (const t of detected) {
-              this.executedToolKeys.add(`${msgIdx}:${t.type}:${t.todoAction || ''}`)
-            }
-          }
+          const hadTools = await this.analyzeAndExecute(msg.content)
+          if (hadTools) this.lastExecMs = Date.now()
         }
       } else if (aiMessages.length === 0 && this.lastMessageCount === 0) {
         // 首次轮询没找到消息 — 只报一次
@@ -188,25 +181,26 @@ export class AgentLoop {
   // ============================================================
 
   /** 返回值表示是否执行了任何工具（含失败） */
-  private async analyzeAndExecute(content: string, msgIdx = -1): Promise<boolean> {
+  private async analyzeAndExecute(content: string): Promise<boolean> {
     if (content.length < 5) return false
 
     const tools = this.detectToolCalls(content)
     if (tools.length === 0) {
-      if (content.includes('[list]') || content.includes('[read:') || content.includes('[edit:')) {
+      if (content.includes('[list]') || content.includes('[read:') || content.includes('[edit:') || content.includes('[todo]')) {
         console.log('[BAI] ⚠️ 工具标记存在但 detectToolCalls 未识别:', JSON.stringify(content.substring(0, 300)))
       }
       return false
     }
 
-    // 过滤掉已在此消息中执行过的工具（防流式反复执行）
-    const freshTools = msgIdx >= 0
-      ? tools.filter(t => !this.executedToolKeys.has(`${msgIdx}:${t.type}:${t.todoAction || ''}`))
-      : tools
-    if (freshTools.length === 0) return false
+    // 流式防抖：1 秒内不重复执行工具
+    const now = Date.now()
+    if (now - this.lastExecMs < 1000) {
+      console.log('[BAI] 跳过流式重复执行 (cooldown)')
+      return false
+    }
 
     let hasOutput = false
-    for (const tool of freshTools) {
+    for (const tool of tools) {
       if (tool.confidence < 0.6) continue
 
       this.options.onLog('info', `🔍 检测到 AI 需要操作: ${this.describeTool(tool)}`)
@@ -320,6 +314,7 @@ export class AgentLoop {
 
     // [todo] — 列出 todos
     if (/\[todo\]/.test(content)) {
+      console.log('[BAI] ✅ 检测到 [todo]')
       tools.push({ type: 'todo', todoAction: 'list', confidence: 0.95 })
     }
 
@@ -599,8 +594,6 @@ export class AgentLoop {
   /** 重置消息计数器（切换对话时使用） */
   resetMessageCount(): void {
     this.lastMessageCount = 0
-    this.processedTexts.clear()
-    this.executedToolKeys.clear()
   }
 }
 
