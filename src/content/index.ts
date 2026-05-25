@@ -172,6 +172,7 @@ function startAgentLoop(): void {
     injectText: (t:string) => { appendToInput(t) },
     sendMessage: () => { simulateSend() },
     onLog: (type,msg) => panel?.addLog(type,msg),
+    onToolResult: (r) => panel?.addDiff(r.type, r.filePath, r.diff),
     onStatus: (text) => panel?.updateStatusBar(text),
   })
   agent.setDirectory(dirHandle)

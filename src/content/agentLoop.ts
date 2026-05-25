@@ -23,6 +23,7 @@ import {
 } from './fileSystem'
 import { countFiles } from './fileSystem'
 import { loadSettings, resolveLang, t, type Lang } from './settings'
+import { computeDiff, formatDiffText } from './diff'
 
 // ============================================================
 // 类型
@@ -47,6 +48,8 @@ export interface AgentLoopOptions {
   sendMessage: () => void
   /** 日志回调 */
   onLog: (type: 'info' | 'success' | 'error' | 'warn', msg: string) => void
+  /** 工具执行结果回调（用于渲染 diff） */
+  onToolResult?: (result: { type: 'edit' | 'write'; filePath: string; diff: string }) => void
   /** 状态更新回调 */
   onStatus: (text: string) => void
 }
@@ -378,7 +381,11 @@ export class AgentLoop {
           if (!tool.filePath || !tool.content || !tool.newContent) throw new Error('缺少路径或内容')
           this.options.onLog('info', `✏️ 正在编辑: ${tool.filePath}`)
           await editFile(this.dirHandle, tool.filePath, tool.content, tool.newContent)
-          this.options.injectText(`[Tool: Edit]\n\`${tool.filePath}\` ✅ Edited`)
+          const hunks = computeDiff(tool.content, tool.newContent)
+          const diffText = formatDiffText(hunks)
+          const diffBlock = '```diff\n' + stripMarkdownTicks(diffText) + '\n```'
+          this.options.injectText(`[Tool: Edit]\n\`${tool.filePath}\`\n${diffBlock}\n`)
+          this.options.onToolResult?.({ type: 'edit', filePath: tool.filePath, diff: diffText })
           this.options.onLog('success', `✅ 已编辑 ${tool.filePath}`)
           break
         }
@@ -394,7 +401,12 @@ export class AgentLoop {
           }
           this.options.onLog('info', `📝 正在创建: ${tool.filePath}`)
           await writeFile(this.dirHandle, tool.filePath, tool.content)
-          this.options.injectText(`[Tool: Write]\n\`${tool.filePath}\` ✅ Created`)
+          // 新文件 diff：所有行都是新增
+          const lines = tool.content.split('\n')
+          const diffBody = lines.map(l => `+${l}`).join('\n')
+          const diffBlock = '```diff\n' + stripMarkdownTicks(diffBody) + '\n```'
+          this.options.injectText(`[Tool: Write]\n\`${tool.filePath}\`\n${diffBlock}\n`)
+          this.options.onToolResult?.({ type: 'write', filePath: tool.filePath, diff: diffBody })
           this.options.onLog('success', `✅ 已创建 ${tool.filePath}`)
           break
         }

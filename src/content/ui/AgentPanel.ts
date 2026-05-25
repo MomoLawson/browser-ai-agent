@@ -51,6 +51,12 @@ const CSS = `
 .log-b .empty{color:#475569;text-align:center;padding:10px 0;font-size:12px}
 .log-b::-webkit-scrollbar{width:4px}
 .log-b::-webkit-scrollbar-thumb{background:#334155;border-radius:2px}
+.df{padding:2px 0}.df-hdr{display:flex;align-items:center;gap:6px;padding:3px 8px;background:#1e293b;border-radius:4px 4px 0 0;font-size:11px;font-weight:600;color:#e2e8f0;border-bottom:1px solid #334155}
+.df-bd{background:#0f172a;border-radius:0 0 4px 4px;padding:4px 0;font-family:'SF Mono','Fira Code',monospace;font-size:10px;line-height:1.4;overflow-x:auto;white-space:pre}
+.df-bd .da{color:#4ade80;background:rgba(74,222,128,.06);display:block;padding:0 8px}
+.df-bd .dd{color:#f87171;background:rgba(248,113,113,.06);display:block;padding:0 8px}
+.df-bd .dh{color:#c084fc;display:block;padding:0 8px}
+.df-bd .dc{color:#94a3b8;display:block;padding:0 8px}
 `
 import { loadSettings, saveSettings, resolveLang, LANG_NAMES, type Lang } from '../settings'
 import { fa, renderFA } from './icons'
@@ -127,6 +133,24 @@ export class AgentPanel{
   setStatus(s:'idle'|'listening'|'error',t?:string):void{this.elDot.className=`dot ${s}`;this.elST.textContent=t||(s==='idle'?this.t('wa'):this.t('ls'))}
   setProjectInfo(n:string,c:number):void{this.elInfo.innerHTML=`<span class="lbl">${this.t('pj')}:</span> ${esc(n)} | <span class="lbl">${this.t('fl')}:</span> ${c}`;this.elInfo.classList.add('act')}
   addLog(t:'info'|'success'|'error'|'warn',m:string):void{const e=this.elLog.querySelector('.empty');if(e)e.remove();const d=document.createElement('div');d.className='e';d.innerHTML=`<span class="t">${tm()}</span><span class="m ${t}">${esc(m)}</span>`;this.elLog.appendChild(d);this.elLog.scrollTop=this.elLog.scrollHeight}
+  addDiff(type:'edit'|'write',filePath:string,diffText:string):void{
+    const e=this.elLog.querySelector('.empty');if(e)e.remove()
+    const c=document.createElement('div');c.className='e df'
+    const hdr=document.createElement('div');hdr.className='df-hdr'
+    hdr.innerHTML=`<span>${type==='edit'?'✏️':'📝'}</span><span>${esc(filePath)}</span>`
+    c.appendChild(hdr)
+    const bd=document.createElement('div');bd.className='df-bd'
+    for(const line of diffText.split('\n')){
+      const s=document.createElement('span')
+      if(line.startsWith('+'))s.className='da'
+      else if(line.startsWith('-'))s.className='dd'
+      else if(line.startsWith('@@'))s.className='dh'
+      else s.className='dc'
+      s.textContent=line
+      bd.appendChild(s)
+    }
+    c.appendChild(bd);this.elLog.appendChild(c);this.elLog.scrollTop=this.elLog.scrollHeight
+  }
   clearLogs():void{this.elLog.innerHTML=`<div class="empty">${this.t('cd')}</div>`}
   updateStatusBar(t:string):void{this.elST.textContent=t}
   destroy():void{this.host.remove()}
