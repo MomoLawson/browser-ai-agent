@@ -176,6 +176,9 @@ function startAgentLoop(): void {
       panel?.addDiff(r.type, r.filePath, r.diff)
       renderDiffOnPage(r.type, r.filePath, r.diff)
     },
+    onTodoResult: (r) => {
+      renderTodoOnPage(r.todos, r.message)
+    },
     onStatus: (text) => panel?.updateStatusBar(text),
   })
   agent.setDirectory(dirHandle)
@@ -311,6 +314,18 @@ function injectDiffCSS(): void {
 .bai-df-bd .dd{color:#f87171;background:rgba(248,113,113,.07);display:block;padding:0 10px}
 .bai-df-bd .dh{color:#c084fc;display:block;padding:0 10px}
 .bai-df-bd .dc{color:#94a3b8;display:block;padding:0 10px}
+/* todo */
+.bai-td{margin:8px 0;border-radius:6px;overflow:hidden;border:1px solid #e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans SC',sans-serif}
+.bai-td-hdr{display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:12px;font-weight:600;color:#e2e8f0;background:#1e293b;border-bottom:1px solid #334155}
+.bai-td-bd{padding:4px 0;background:#0f172a;font-family:'SF Mono','Fira Code','Cascadia Code',monospace;font-size:12px;line-height:1.6}
+.bai-td-it{display:flex;align-items:center;gap:6px;padding:2px 10px}
+.bai-td-it .cb{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:3px;font-size:10px;flex-shrink:0}
+.bai-td-it .cb.done{background:#22c55e;color:#fff}
+.bai-td-it .cb.pend{background:#334155;color:#94a3b8;border:1px solid #475569}
+.bai-td-it .num{color:#64748b;font-size:11px;min-width:20px;text-align:right;flex-shrink:0}
+.bai-td-it .txt{color:#e2e8f0;flex:1}
+.bai-td-it .txt.done{color:#64748b;text-decoration:line-through}
+.bai-td-em{color:#94a3b8;padding:8px 10px;font-size:12px}
 `
   document.head.appendChild(style)
 }
@@ -356,4 +371,31 @@ function diffToHtml(diffText: string): string {
 
 function escHtml(s: string): string {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
+// ============================================================
+// 页面级 todo 渲染
+// ============================================================
+
+function renderTodoOnPage(todos: Array<{id:number;text:string;done:boolean}>, message: string): void {
+  injectDiffCSS()
+  const msgEl = findLastAIMessage()
+  if (!msgEl) return
+
+  const el = document.createElement('div')
+  el.className = 'bai-td'
+  let body: string
+  if (todos.length === 0) {
+    body = `<div class="bai-td-em">${escHtml(message)}</div>`
+  } else {
+    body = todos.map(t =>
+      `<div class="bai-td-it">` +
+      `<span class="cb ${t.done?'done':'pend'}">${t.done?'✓':' '}</span>` +
+      `<span class="num">${t.id}.</span>` +
+      `<span class="txt${t.done?' done':''}">${escHtml(t.text)}</span>` +
+      `</div>`
+    ).join('')
+  }
+  el.innerHTML = `<div class="bai-td-hdr">📋 To-Do</div><div class="bai-td-bd">${body}</div>`
+  msgEl.appendChild(el)
 }

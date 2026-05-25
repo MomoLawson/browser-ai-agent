@@ -24,18 +24,23 @@ import {
 import { countFiles } from './fileSystem'
 import { loadSettings, resolveLang, t, type Lang } from './settings'
 import { computeDiff, formatDiffText } from './diff'
+import { loadTodos, addTodo, toggleTodo, removeTodo, clearTodos, formatTodoText, type TodoItem } from './todo'
 
 // ============================================================
 // 类型
 // ============================================================
 
 export interface ToolCall {
-  type: 'read_file' | 'write_file' | 'edit_file' | 'list_files' | 'search_code' | 'grep_code'
+  type: 'read_file' | 'write_file' | 'edit_file' | 'list_files' | 'search_code' | 'grep_code' | 'todo'
   filePath?: string
   content?: string
   newContent?: string
   pattern?: string
   confidence: number // 0-1
+  // todo 相关
+  todoAction?: 'list' | 'add' | 'done' | 'remove' | 'clear'
+  todoText?: string
+  todoId?: number
 }
 
 export interface AgentLoopOptions {
@@ -50,6 +55,8 @@ export interface AgentLoopOptions {
   onLog: (type: 'info' | 'success' | 'error' | 'warn', msg: string) => void
   /** 工具执行结果回调（用于渲染 diff） */
   onToolResult?: (result: { type: 'edit' | 'write'; filePath: string; diff: string }) => void
+  /** todo 结果回调（用于渲染 todo 列表） */
+  onTodoResult?: (result: { action: string; todos: TodoItem[]; message: string }) => void
   /** 状态更新回调 */
   onStatus: (text: string) => void
 }
@@ -299,6 +306,45 @@ export class AgentLoop {
       tools.push({ type: 'list_files', confidence: 0.95 })
     }
 
+    // [todo] — 列出 todos
+    if (/\[todo\]/.test(content)) {
+      tools.push({ type: 'todo', todoAction: 'list', confidence: 0.95 })
+    }
+
+    // [todo: action ...]
+    const todoMatches = content.matchAll(/\[todo[：:]\s*([^\]]+)\]/g)
+    for (const tm of todoMatches) {
+      const cmd = tm[1].trim()
+      // [todo: add "text"]
+      const addM = cmd.match(/^(?:add|添加)\s+"([^"]+)"|^(?:add|添加)\s+'([^']+)'|^(?:add|添加)\s+(.+)/)
+      if (addM) {
+        const text = addM[1] || addM[2] || addM[3]
+        if (text && text.length >= 1) {
+          tools.push({ type: 'todo', todoAction: 'add', todoText: text, confidence: 0.95 })
+          continue
+        }
+      }
+      // [todo: done N] / [todo: check N] / [todo: complete N]
+      const doneM = cmd.match(/^(?:done|check|complete|完成)\s+(\d+)/)
+      if (doneM) {
+        tools.push({ type: 'todo', todoAction: 'done', todoId: parseInt(doneM[1]), confidence: 0.95 })
+        continue
+      }
+      // [todo: remove N] / [todo: rm N] / [todo: delete N] / [todo: 删除 N]
+      const rmM = cmd.match(/^(?:remove|rm|delete|删除)\s+(\d+)/)
+      if (rmM) {
+        tools.push({ type: 'todo', todoAction: 'remove', todoId: parseInt(rmM[1]), confidence: 0.95 })
+        continue
+      }
+      // [todo: clear] / [todo: 清除]
+      if (/^(?:clear|清除)$/.test(cmd)) {
+        tools.push({ type: 'todo', todoAction: 'clear', confidence: 0.95 })
+        continue
+      }
+      // 其他文字当作 list
+      tools.push({ type: 'todo', todoAction: 'list', confidence: 0.9 })
+    }
+
     // [edit: path] old\n====\nnew [/edit] — 必须包含 [/edit] 闭包（防止流式输出时误匹配）
     const editMatches = content.matchAll(/\[(?:edit|编辑)[：:]\s*([^\]]+)\]\s*([\s\S]*?)(?:\[\/(?:edit|编辑)\])/g)
     for (const editBlock of editMatches) {
@@ -449,6 +495,49 @@ export class AgentLoop {
           this.options.onLog('success', 'grep 完成')
           break
         }
+
+        case 'todo': {
+          const project = this.dirHandle.name
+          const action = tool.todoAction || 'list'
+          let todos: TodoItem[]
+          let msg = ''
+          switch (action) {
+            case 'add': {
+              if (!tool.todoText) throw new Error('todo 缺少描述文字')
+              todos = addTodo(project, tool.todoText)
+              msg = `✅ To-Do added: ${tool.todoText}`
+              break
+            }
+            case 'done': {
+              if (!tool.todoId) throw new Error('todo 缺少编号')
+              todos = toggleTodo(project, tool.todoId)
+              const t = todos.find(x => x.id === tool.todoId)
+              msg = t?.done ? `✅ To-Do #${tool.todoId} completed` : `↩️ To-Do #${tool.todoId} reopened`
+              break
+            }
+            case 'remove': {
+              if (!tool.todoId) throw new Error('todo 缺少编号')
+              todos = removeTodo(project, tool.todoId)
+              msg = `🗑️ To-Do #${tool.todoId} removed`
+              break
+            }
+            case 'clear': {
+              todos = clearTodos(project)
+              msg = '🗑️ All todos cleared'
+              break
+            }
+            default: {
+              todos = loadTodos(project)
+              msg = todos.length > 0 ? `📋 ${todos.length} todo(s)` : '📋 No todos'
+              break
+            }
+          }
+          const text = formatTodoText(todos)
+          this.options.injectText(`[Tool: Todo]\n${msg}\n${text}`)
+          this.options.onTodoResult?.({ action, todos, message: msg })
+          this.options.onLog('success', msg)
+          break
+        }
       }
     } finally {
       this.isProcessing = false
@@ -486,6 +575,7 @@ export class AgentLoop {
       case 'list_files': return '列出项目文件'
       case 'search_code': return `搜索文件 ${tool.pattern}`
       case 'grep_code': return `搜索内容 ${tool.pattern}`
+      case 'todo': return `To-Do: ${tool.todoAction || 'list'}`
     }
   }
 
