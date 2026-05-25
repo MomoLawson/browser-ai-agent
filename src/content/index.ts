@@ -172,7 +172,10 @@ function startAgentLoop(): void {
     injectText: (t:string) => { appendToInput(t) },
     sendMessage: () => { simulateSend() },
     onLog: (type,msg) => panel?.addLog(type,msg),
-    onToolResult: (r) => panel?.addDiff(r.type, r.filePath, r.diff),
+    onToolResult: (r) => {
+      panel?.addDiff(r.type, r.filePath, r.diff)
+      renderDiffOnPage(r.type, r.filePath, r.diff)
+    },
     onStatus: (text) => panel?.updateStatusBar(text),
   })
   agent.setDirectory(dirHandle)
@@ -288,3 +291,69 @@ function writeToInput(text: string): void {
 }
 
 setTimeout(main,500)
+
+// ============================================================
+// 页面级 diff 渲染
+// ============================================================
+
+let _diffCssInjected = false
+
+function injectDiffCSS(): void {
+  if (_diffCssInjected) return
+  _diffCssInjected = true
+  const style = document.createElement('style')
+  style.id = 'bai-diff-style'
+  style.textContent = `
+.bai-df{margin:8px 0;border-radius:6px;overflow:hidden;border:1px solid #e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans SC',sans-serif}
+.bai-df-hdr{display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:12px;font-weight:600;color:#e2e8f0;background:#1e293b;border-bottom:1px solid #334155}
+.bai-df-bd{margin:0;padding:6px 0;background:#0f172a;font-family:'SF Mono','Fira Code','Cascadia Code',monospace;font-size:12px;line-height:1.45;overflow-x:auto;white-space:pre;tab-size:2}
+.bai-df-bd .da{color:#4ade80;background:rgba(74,222,128,.07);display:block;padding:0 10px}
+.bai-df-bd .dd{color:#f87171;background:rgba(248,113,113,.07);display:block;padding:0 10px}
+.bai-df-bd .dh{color:#c084fc;display:block;padding:0 10px}
+.bai-df-bd .dc{color:#94a3b8;display:block;padding:0 10px}
+`
+  document.head.appendChild(style)
+}
+
+function renderDiffOnPage(type: 'edit' | 'write', filePath: string, diffText: string): void {
+  injectDiffCSS()
+  const msgEl = findLastAIMessage()
+  if (!msgEl) return
+
+  const icon = type === 'edit' ? '✏️' : '📝'
+  const label = type === 'edit' ? 'Edited' : 'Created'
+
+  const el = document.createElement('div')
+  el.className = 'bai-df'
+  el.innerHTML = `<div class="bai-df-hdr">${icon} <span>${escHtml(filePath)}</span> <span style="color:#94a3b8;font-weight:400">— ${label}</span></div><pre class="bai-df-bd">${diffToHtml(diffText)}</pre>`
+  msgEl.appendChild(el)
+}
+
+function findLastAIMessage(): HTMLElement | null {
+  const sels = [
+    '[data-message-author-role="assistant"]',
+    '[data-testid="ai-message"]',
+    '.ds-assistant-message-main-content',
+  ]
+  for (const sel of sels) {
+    const els = document.querySelectorAll<HTMLElement>(sel)
+    if (els.length) return els[els.length - 1]
+  }
+  // fallback: class 包含 assistant-message
+  const fallback = document.querySelectorAll<HTMLElement>('[class*="assistant-message"],[class*="ai-message"]')
+  if (fallback.length) return fallback[fallback.length - 1]
+  return null
+}
+
+function diffToHtml(diffText: string): string {
+  return diffText.split('\n').map(line => {
+    if (line.startsWith('+')) return `<span class="da">${escHtml(line)}</span>`
+    if (line.startsWith('-')) return `<span class="dd">${escHtml(line)}</span>`
+    if (line.startsWith('@@')) return `<span class="dh">${escHtml(line)}</span>`
+    return `<span class="dc">${escHtml(line)}</span>`
+  }).join('')
+}
+
+function escHtml(s: string): string {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}

@@ -384,8 +384,7 @@ export class AgentLoop {
           await editFile(this.dirHandle, tool.filePath, tool.content, tool.newContent)
           const hunks = computeDiff(tool.content, tool.newContent)
           const diffText = formatDiffText(hunks)
-          const diffBlock = '```diff\n' + stripMarkdownTicks(diffText) + '\n```'
-          this.options.injectText(`[Tool: Edit]\n\`${tool.filePath}\`\n${diffBlock}\n`)
+          this.options.injectText(`[Tool: Edit]\n\`${tool.filePath}\` ✅ Edited`)
           this.options.onToolResult?.({ type: 'edit', filePath: tool.filePath, diff: diffText })
           this.options.onLog('success', `✅ 已编辑 ${tool.filePath}`)
           break
@@ -402,11 +401,8 @@ export class AgentLoop {
           }
           this.options.onLog('info', `📝 正在创建: ${tool.filePath}`)
           await writeFile(this.dirHandle, tool.filePath, tool.content)
-          // 新文件 diff：所有行都是新增
-          const lines = tool.content.split('\n')
-          const diffBody = lines.map(l => `+${l}`).join('\n')
-          const diffBlock = '```diff\n' + stripMarkdownTicks(diffBody) + '\n```'
-          this.options.injectText(`[Tool: Write]\n\`${tool.filePath}\`\n${diffBlock}\n`)
+          const diffBody = tool.content.split('\n').map(l => `+${l}`).join('\n')
+          this.options.injectText(`[Tool: Write]\n\`${tool.filePath}\` ✅ Created`)
           this.options.onToolResult?.({ type: 'write', filePath: tool.filePath, diff: diffBody })
           this.options.onLog('success', `✅ 已创建 ${tool.filePath}`)
           break
