@@ -539,8 +539,8 @@ export class AgentLoop {
               break
             }
           }
-          const text = formatTodoText(todos)
-          this.options.injectText(`[Tool: Todo]\n${msg}\n${text}`)
+          const text = action === 'list' ? '\n' + formatTodoText(todos) : ''
+          this.options.injectText(`[Tool: Todo] ${msg}${text}`)
           this.options.onTodoResult?.({ action, todos, message: msg })
           this.options.onLog('success', msg)
           break
