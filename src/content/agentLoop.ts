@@ -270,8 +270,8 @@ export class AgentLoop {
       tools.push({ type: 'list_files', confidence: 0.95 })
     }
 
-    // [edit: path] old\n====\nnew [/edit] — 支持多个
-    const editMatches = content.matchAll(/\[(?:edit|编辑)[：:]\s*([^\]]+)\]\s*([\s\S]*?)(?:\[\/(?:edit|编辑)\]|$)/g)
+    // [edit: path] old\n====\nnew [/edit] — 必须包含 [/edit] 闭包（防止流式输出时误匹配）
+    const editMatches = content.matchAll(/\[(?:edit|编辑)[：:]\s*([^\]]+)\]\s*([\s\S]*?)(?:\[\/(?:edit|编辑)\])/g)
     for (const editBlock of editMatches) {
       console.log('[BAI Agent] 检测到 edit:', editBlock[1], '| body:', editBlock[2].substring(0, 60))
       // 找分隔符：优先匹配单独成行的 ==== 或 ---
@@ -311,8 +311,8 @@ export class AgentLoop {
       }
     }
 
-    // [write: path] ... [/write] — 支持多个和省略 [/write]
-    const writeMatches = content.matchAll(/\[(?:write|写入)[：:]\s*([^\]]+)\]\s*([\s\S]*?)(?:\[\/(?:write|写入)\]|(?=\[)|$)/g)
+    // [write: path] ... [/write] — 必须包含 [/write] 闭包（防止流式输出时写入不完整内容）
+    const writeMatches = content.matchAll(/\[(?:write|写入)[：:]\s*([^\]]+)\]\s*([\s\S]*?)(?:\[\/(?:write|写入)\]|(?=\[))/g)
     for (const writeBlock of writeMatches) {
       tools.push({
         type: 'write_file',
