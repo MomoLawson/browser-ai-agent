@@ -32,7 +32,9 @@ const CSS = `
 .pblock{background:#fefce8;border:1px solid #fde68a;border-radius:10px;overflow:hidden;margin-bottom:12px}
 .pblock.hidden{display:none}
 .phdr{display:flex;align-items:center;gap:6px;padding:8px 12px;background:#fef3c7;font-size:12px;font-weight:600;color:#92400e}
-.ptext{font-family:'SF Mono','Fira Code',monospace;font-size:12px;line-height:1.5;padding:10px 12px;background:#fffbeb;color:#1a1a2e;white-space:pre-wrap;max-height:120px;overflow-y:auto}
+.ptext{font-family:'SF Mono','Fira Code',monospace;font-size:12px;line-height:1.5;padding:10px 12px;background:#fffbeb;color:#1a1a2e;white-space:pre-wrap;max-height:90px;overflow-y:auto}
+.uarea{width:100%;padding:8px 12px;border:none;border-top:1px solid #fde68a;font-family:'SF Mono','Fira Code',monospace;font-size:12px;line-height:1.5;color:#1a1a2e;background:#fff8e8;resize:vertical;min-height:44px;outline:none}
+.uarea:focus{background:#fff}.uarea::placeholder{color:#d4a574}
 .pacts{display:flex;gap:6px;padding:8px 12px;background:#fef3c7;border-top:1px solid #fde68a}
 .sp{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2147483648;background:#fff;border-radius:14px;box-shadow:0 8px 36px rgba(0,0,0,.25);padding:20px;width:300px;max-width:90vw}
 .sp.hidden{display:none}
@@ -54,9 +56,9 @@ import { loadSettings, saveSettings, resolveLang, LANG_NAMES, type Lang } from '
 import { fa, renderFA } from './icons'
 type UILang='en-US'|'zh-CN'|'zh-TW'
 const T:Record<UILang,Record<string,string>>={
-  'en-US':{wa:'Waiting for project',se:'Select project',ns:'Not selected',sp:'Send prompt to AI',sa:'Send to AI',cp:'Copy',lg:'Logs',cl:'Clear',cd:'Cleared',ch:'Connect a project to see logs',st:'Settings',ll:'Language',cs:'Close',fd:'Sent to AI',co:'Copied',pj:'Project',fl:'Files',ls:'Listening',pr:'Prompt ready - copy and send'},
-  'zh-CN':{wa:'等待连接项目',se:'选择项目',ns:'未选择',sp:'发送提示词给 AI',sa:'发送给 AI',cp:'复制',lg:'操作日志',cl:'清除',cd:'已清除',ch:'连接项目后这里显示操作记录',st:'设置',ll:'界面语言',cs:'关闭',fd:'已发送',co:'已复制',pj:'项目',fl:'文件',ls:'监听中',pr:'提示词已就绪 - 复制后发送'},
-  'zh-TW':{wa:'等待連接專案',se:'選擇專案',ns:'未選擇',sp:'發送提示詞給 AI',sa:'發送給 AI',cp:'複製',lg:'操作日誌',cl:'清除',cd:'已清除',ch:'連接專案後這裡顯示操作記錄',st:'設定',ll:'介面語言',cs:'關閉',fd:'已發送',co:'已複製',pj:'專案',fl:'檔案',ls:'監聽中',pr:'提示詞已就緒 - 複製後傳送'},
+  'en-US':{wa:'Waiting for project',se:'Select project',ns:'Not selected',sp:'Project context',sa:'Send to AI',ur:'What do you want to do?',cp:'Copy',lg:'Logs',cl:'Clear',cd:'Cleared',ch:'Connect a project to see logs',st:'Settings',ll:'Language',cs:'Close',fd:'Sent to AI',co:'Copied',pj:'Project',fl:'Files',ls:'Listening'},
+  'zh-CN':{wa:'等待连接项目',se:'选择项目',ns:'未选择',sp:'项目上下文',sa:'发送给 AI',ur:'输入你的需求...',cp:'复制',lg:'操作日志',cl:'清除',cd:'已清除',ch:'连接项目后这里显示操作记录',st:'设置',ll:'界面语言',cs:'关闭',fd:'已发送',co:'已复制',pj:'项目',fl:'文件',ls:'监听中'},
+  'zh-TW':{wa:'等待連接專案',se:'選擇專案',ns:'未選擇',sp:'專案上下文',sa:'發送給 AI',ur:'輸入你的需求...',cp:'複製',lg:'操作日誌',cl:'清除',cd:'已清除',ch:'連接專案後這裡顯示操作記錄',st:'設定',ll:'介面語言',cs:'關閉',fd:'已發送',co:'已複製',pj:'專案',fl:'檔案',ls:'監聽中'},
 }
 type K=keyof typeof T['en-US']
 
@@ -66,7 +68,7 @@ export class AgentPanel{
   private elPane!:HTMLElement;private elSelect!:HTMLButtonElement;private elInfo!:HTMLElement
   private elLog!:HTMLElement;private elPrompt!:HTMLElement;private elPT!:HTMLElement
   private elStgBtn!:HTMLButtonElement;private elStgPnl!:HTMLElement;private elLang!:HTMLSelectElement
-  private elST!:HTMLElement;private elDot!:HTMLElement
+  private elST!:HTMLElement;private elDot!:HTMLElement;private elInput!:HTMLTextAreaElement
   onSelectProject?:()=>Promise<{name:string;fileCount:number}|null>
   onClose?:()=>void;onSendPrompt?:(t:string)=>void;onSettingsChange?:()=>void
   constructor(){const s=loadSettings();this.lang=resolveLang(s)as UILang;this.host=document.createElement('div');document.body.appendChild(this.host);this.shadow=this.host.attachShadow({mode:'open'});this.render();this.bindEvents()}
@@ -80,14 +82,14 @@ export class AgentPanel{
 <div class="body">
   <div class="status-bar"><span class="dot idle" id="dot"></span><span class="status" id="st">${this.t('wa')}</span></div>
   <div class="row"><button class="btn btn-p" id="sel"><i class="${fa('folderOpen')}"></i>${this.t('se')}</button><div class="info" id="info"><span class="lbl">${this.t('ns')}</span></div></div>
-  <div class="pblock hidden" id="pb"><div class="phdr"><i class="${fa('messageSquare')}"></i>${this.t('sp')}</div><div class="ptext" id="pt"></div><div class="pacts"><button class="btn btn-g" id="ci"><i class="${fa('paperPlane')}"></i>${this.t('sa')}</button><button class="btn btn-o" id="cc"><i class="${fa('copy')}"></i>${this.t('cp')}</button></div></div>
+  <div class="pblock hidden" id="pb"><div class="phdr"><i class="${fa('messageSquare')}"></i>${this.t('sp')}</div><div class="ptext" id="pt"></div><textarea class="uarea" id="ui" placeholder="${this.t('ur')}"></textarea><div class="pacts"><button class="btn btn-g" id="ci"><i class="${fa('paperPlane')}"></i>${this.t('sa')}</button><button class="btn btn-o" id="cc"><i class="${fa('copy')}"></i>${this.t('cp')}</button></div></div>
   <div class="log"><div class="log-h"><span class="log-t"><i class="${fa('list')}"></i>${this.t('lg')}</span><button class="btn btn-o" id="clr" style="font-size:11px;padding:3px 8px"><i class="${fa('trash2')}"></i>${this.t('cl')}</button></div><div class="log-b" id="lb"><div class="empty">${this.t('ch')}</div></div></div>
 </div></div>
 <div class="sp hidden" id="sp"><h3><i class="${fa('sliders')}"></i>${this.t('st')}</h3><label>${this.t('ll')}</label><select id="langSel"></select><button class="btn btn-p sp-close" id="spCl"><i class="${fa('check')}"></i>${this.t('cs')}</button></div>`
     setTimeout(() => renderFA(this.shadow), 50)
     this.elPane=this.$('pn');this.elDot=this.$('dot');this.elSelect=this.$('sel')as HTMLButtonElement
     this.elInfo=this.$('info');this.elLog=this.$('lb');this.elPrompt=this.$('pb');this.elPT=this.$('pt')
-    this.elST=this.$('st');this.elStgBtn=this.$('stg')as HTMLButtonElement
+    this.elST=this.$('st');this.elStgBtn=this.$('stg')as HTMLButtonElement;this.elInput=this.$('ui')as HTMLTextAreaElement
     this.elStgPnl=this.$('sp');this.elLang=this.$('langSel')as HTMLSelectElement
     const c=loadSettings().language
     this.elLang.innerHTML=Object.entries(LANG_NAMES).map(([k,v])=>`<option value="${k}"${k===c?' selected':''}>${v}</option>`).join('')
@@ -101,6 +103,7 @@ export class AgentPanel{
     this.$('clr').innerHTML=`<i class="${fa('trash2')}"></i>${this.t('cl')}`
     const p=this.shadow.querySelector('.phdr');if(p)p.innerHTML=`<i class="${fa('messageSquare')}"></i>${this.t('sp')}`
     const lt=this.shadow.querySelector('.log-t');if(lt)lt.innerHTML=`<i class="${fa('list')}"></i>${this.t('lg')}`
+    if(this.elInput)this.elInput.placeholder=this.t('ur')
     setTimeout(() => renderFA(this.shadow), 50)
   }
 
@@ -113,14 +116,14 @@ export class AgentPanel{
     this.$('ov').addEventListener('click',e=>{if(e.target===e.currentTarget)this.onClose?.()})
     this.elSelect.addEventListener('click',async()=>{if(!this.onSelectProject)return;this.elSelect.disabled=true;this.elSelect.textContent='...';try{const r=await this.onSelectProject();if(r)this.setProjectInfo(r.name,r.fileCount)}catch(e){this.addLog('error',`x ${(e as Error).message}`)}finally{this.elSelect.disabled=false;this.elSelect.innerHTML=`<i class="${fa('folderOpen')}"></i>${this.t('se')}`;setTimeout(()=>renderFA(this.shadow),50)}})
     this.$('clr').addEventListener('click',()=>this.clearLogs())
-    this.$('ci').addEventListener('click',()=>{if(!this.elPT.textContent)return;this.onSendPrompt?.(this.elPT.textContent);this.addLog('success',this.t('fd'))})
+    this.$('ci').addEventListener('click',()=>{if(!this.elPT.textContent)return;const u=this.elInput?.value?.trim()||'';const t=u?this.elPT.textContent+'\n\n'+u:this.elPT.textContent;this.onSendPrompt?.(t);this.addLog('success',this.t('fd'))})
     this.$('cc').addEventListener('click',()=>{const t=this.elPT.textContent;if(!t)return;navigator.clipboard.writeText(t).then(()=>this.addLog('success',this.t('co')))})
     this.elStgBtn.addEventListener('click',()=>{this.elStgPnl.classList.toggle('hidden')})
     this.elLang.addEventListener('change',()=>{const s=loadSettings();s.language=this.elLang.value as Lang;saveSettings(s);this.lang=resolveLang(s)as UILang;this.rui()})
     this.$('spCl').addEventListener('click',()=>{this.elStgPnl.classList.add('hidden');this.onSettingsChange?.()})
   }
 
-  showPrompt(t:string):void{this.elPT.textContent=t;this.elPrompt.classList.remove('hidden')}
+  showPrompt(t:string):void{this.elPT.textContent=t;this.elPrompt.classList.remove('hidden');if(this.elInput)this.elInput.value=''}
   setStatus(s:'idle'|'listening'|'error',t?:string):void{this.elDot.className=`dot ${s}`;this.elST.textContent=t||(s==='idle'?this.t('wa'):this.t('ls'))}
   setProjectInfo(n:string,c:number):void{this.elInfo.innerHTML=`<span class="lbl">${this.t('pj')}:</span> ${esc(n)} | <span class="lbl">${this.t('fl')}:</span> ${c}`;this.elInfo.classList.add('act')}
   addLog(t:'info'|'success'|'error'|'warn',m:string):void{const e=this.elLog.querySelector('.empty');if(e)e.remove();const d=document.createElement('div');d.className='e';d.innerHTML=`<span class="t">${tm()}</span><span class="m ${t}">${esc(m)}</span>`;this.elLog.appendChild(d);this.elLog.scrollTop=this.elLog.scrollHeight}

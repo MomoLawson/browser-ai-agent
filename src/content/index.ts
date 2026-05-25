@@ -5,8 +5,9 @@
  *
  * 工作流：
  * 1. 页面右下角 🤖 → 打开面板 → 选择项目
- * 2. 面板显示提示词 → 用户复制到输入框 → 发送给 AI
- * 3. AI 知道能力 → Agent 监听对话 → 自动执行工具
+ * 2. 面板显示项目上下文 → 用户在输入框输入需求 → 点击 Send to AI
+ * 3. 系统将上下文(<system-reminder>) + 用户需求组合发送给 AI
+ * 4. AI 知道能力 → Agent 监听对话 → 自动执行工具
  */
 import { detectPlatform, getPlatformDisplayName } from './platforms/detector'
 import { TriggerButton } from './ui/TriggerButton'
@@ -90,7 +91,7 @@ function afterProjectConnected(): void {
   const prompt = buildPrompt(projectName)
   panel.showPrompt(prompt)
   panel.addLog('success', `Project connected: ${projectName}`)
-  panel.addLog('info', 'Copy the prompt and send it to AI')
+  panel.addLog('info', 'Type your request and click Send to AI')
   panel.setStatus('listening', '')
 
   startAgentLoop()
