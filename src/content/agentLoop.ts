@@ -77,6 +77,7 @@ export class AgentLoop {
   private isProcessing = false
   private _processedToolKeys = new Set<string>()
   private _lastProcessedMsgIdx = -1
+  private _msgSent = new Set<number>()
 
   constructor(options: AgentLoopOptions) {
     this.options = options
@@ -184,6 +185,12 @@ export class AgentLoop {
   private async analyzeAndExecute(content: string, msgIdx = -1): Promise<boolean> {
     if (content.length < 5) return false
 
+    // 已回复过的消息跳过（流式内容增长但已发送过回复则不再处理）
+    if (msgIdx >= 0 && this._msgSent.has(msgIdx)) {
+      console.log('[BAI] 消息', msgIdx, '已回复过，跳过')
+      return false
+    }
+
     const tools = this.detectToolCalls(content)
     if (tools.length === 0) {
       if (content.includes('[list]') || content.includes('[read:') || content.includes('[edit:') || content.includes('[todo]')) {
@@ -192,43 +199,55 @@ export class AgentLoop {
       return false
     }
 
-    // 每条消息独立追踪已执行的工具（流式输出时内容增长但工具不变则跳过）
-    if (msgIdx !== this._lastProcessedMsgIdx) {
-      this._processedToolKeys.clear()
-      this._lastProcessedMsgIdx = msgIdx
-    }
+    // 锁定整个分析—执行—发送周期，防止并发 poll 闯入
+    this.isProcessing = true
 
-    let hasOutput = false
-    for (const tool of tools) {
-      if (tool.confidence < 0.6) continue
-
-      // 单个工具粒度去重
-      const key = this._toolKey(tool)
-      if (this._processedToolKeys.has(key)) {
-        console.log('[BAI] 跳过已执行工具:', key)
-        continue
+    try {
+      // 每条消息独立追踪已执行的工具（流式输出时内容增长但工具不变则跳过）
+      if (msgIdx !== this._lastProcessedMsgIdx) {
+        this._processedToolKeys.clear()
+        this._lastProcessedMsgIdx = msgIdx
       }
-      this._processedToolKeys.add(key)
 
-      this.options.onLog('info', `🔍 检测到 AI 需要操作: ${this.describeTool(tool)}`)
+      let hasOutput = false
+      for (const tool of tools) {
+        if (tool.confidence < 0.6) continue
 
-      try {
-        await this.executeTool(tool)
-        hasOutput = true
-      } catch (err) {
-        const msg = (err as Error).message
-        this.options.onLog('error', `❌ 操作失败: ${msg}`)
-        this.options.injectText(`❌ ${msg}`)
-        hasOutput = true
+        // 单个工具粒度去重
+        const key = this._toolKey(tool)
+        if (this._processedToolKeys.has(key)) {
+          console.log('[BAI] 跳过已执行工具:', key)
+          continue
+        }
+        this._processedToolKeys.add(key)
+
+        this.options.onLog('info', `🔍 检测到 AI 需要操作: ${this.describeTool(tool)}`)
+
+        try {
+          await this.executeTool(tool)
+          hasOutput = true
+        } catch (err) {
+          const msg = (err as Error).message
+          this.options.onLog('error', `❌ 操作失败: ${msg}`)
+          this.options.injectText(`❌ ${msg}`)
+          hasOutput = true
+        }
       }
-    }
 
-    // 所有工具执行完后，统一发送一次
-    if (hasOutput) {
-      console.log('[BAI Agent] 所有工具执行完毕，自动发送')
-      this.options.sendMessage()
+      // 所有工具执行完后，统一发送一次
+      if (hasOutput) {
+        if (this._msgSent.has(msgIdx)) {
+          console.log('[BAI Agent] 本消息已发送过，跳过再次发送')
+        } else {
+          console.log('[BAI Agent] 所有工具执行完毕，自动发送')
+          this.options.sendMessage()
+          if (msgIdx >= 0) this._msgSent.add(msgIdx)
+        }
+      }
+      return hasOutput
+    } finally {
+      this.isProcessing = false
     }
-    return hasOutput
   }
 
   /**
@@ -437,10 +456,7 @@ export class AgentLoop {
       return
     }
 
-    this.isProcessing = true
-
-    try {
-      switch (tool.type) {
+    switch (tool.type) {
         case 'list_files': {
           this.options.onLog('info', '📂 正在列出项目文件...')
           const tree = await readDirectoryStructure(this.dirHandle)
@@ -552,9 +568,6 @@ export class AgentLoop {
           this.options.onLog('success', msg)
           break
         }
-      }
-    } finally {
-      this.isProcessing = false
     }
   }
 
