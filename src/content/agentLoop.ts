@@ -59,6 +59,8 @@ export interface AgentLoopOptions {
   onTodoResult?: (result: { action: string; todos: TodoItem[]; message: string }) => void
   /** 状态更新回调 */
   onStatus: (text: string) => void
+  /** 每次轮询后调用（用于恢复渲染卡片、DOM 重入等） */
+  onPollEnd?: () => void
 }
 
 // ============================================================
@@ -175,6 +177,7 @@ export class AgentLoop {
     } catch {
       // 轮询失败静默处理（可能是 DOM 暂时不可用）
     }
+    this.options.onPollEnd?.()
   }
 
   // ============================================================
@@ -184,12 +187,6 @@ export class AgentLoop {
   /** 返回值表示是否执行了任何工具（含失败） */
   private async analyzeAndExecute(content: string, msgIdx = -1): Promise<boolean> {
     if (content.length < 5) return false
-
-    // 已回复过的消息跳过（流式内容增长但已发送过回复则不再处理）
-    if (msgIdx >= 0 && this._msgSent.has(msgIdx)) {
-      console.log('[BAI] 消息', msgIdx, '已回复过，跳过')
-      return false
-    }
 
     const tools = this.detectToolCalls(content)
     if (tools.length === 0) {

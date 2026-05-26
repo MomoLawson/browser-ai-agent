@@ -180,6 +180,7 @@ function startAgentLoop(): void {
       renderTodoOnPage(r.todos, r.message)
     },
     onStatus: (text) => panel?.updateStatusBar(text),
+    onPollEnd: () => reapplyRenderedCards(),
   })
   agent.setDirectory(dirHandle)
   // 启动前跳过已有消息
