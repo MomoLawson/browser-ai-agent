@@ -185,6 +185,8 @@ function startAgentLoop(): void {
   // 启动前跳过已有消息
   const existing = countCurrentAIMessages()
   agent.start(existing)
+  // 恢复已渲染的 diff/todo 卡片
+  setTimeout(() => reapplyRenderedCards(), 1000)
   // 调试：报告当前检测到的消息数
   setTimeout(() => {
     const ds = document.querySelectorAll('[data-message-author-role]').length
@@ -314,6 +316,7 @@ function injectDiffCSS(): void {
 .bai-df-bd .dd{color:#f87171;background:rgba(248,113,113,.07);display:block;padding:0 10px}
 .bai-df-bd .dh{color:#c084fc;display:block;padding:0 10px}
 .bai-df-bd .dc{color:#94a3b8;display:block;padding:0 10px}
+.bai-df-bd .ln{display:inline-block;min-width:32px;text-align:right;margin-right:8px;color:#64748b;user-select:none}
 /* todo */
 .bai-td{margin:8px 0;border-radius:6px;overflow:hidden;border:1px solid #e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans SC',sans-serif}
 .bai-td-hdr{display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:12px;font-weight:600;color:#e2e8f0;background:#1e293b;border-bottom:1px solid #334155}
@@ -337,6 +340,13 @@ function renderDiffOnPage(type: 'edit' | 'write', filePath: string, diffText: st
   // 替换已有 diff 卡片，避免流式输出重复渲染
   const existing = msgEl.querySelector('.bai-df')
   if (existing) existing.remove()
+
+  // 保存到渲染缓存（重新进入页面时恢复）
+  const idx = _findMsgIdx(msgEl)
+  if (idx >= 0) {
+    _renderCache.set(idx, { type: 'diff', data: { type, filePath, diffText } })
+    _saveRC()
+  }
 
   const icon = type === 'edit' ? '✏️' : '📝'
   const label = type === 'edit' ? 'Edited' : 'Created'
@@ -364,12 +374,35 @@ function findLastAIMessage(): HTMLElement | null {
 }
 
 function diffToHtml(diffText: string): string {
+  let oldNum = 0, newNum = 0
   return diffText.split('\n').map(line => {
-    if (line.startsWith('+')) return `<span class="da">${escHtml(line)}</span>`
-    if (line.startsWith('-')) return `<span class="dd">${escHtml(line)}</span>`
-    if (line.startsWith('@@')) return `<span class="dh">${escHtml(line)}</span>`
+    if (line.startsWith('@@')) {
+      const m = line.match(/@@\s+-(\d+)(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@/)
+      if (m) { oldNum = parseInt(m[1]); newNum = parseInt(m[2]) }
+      return `<span class="dh">${escHtml(line)}</span>`
+    }
+    const prefix = line.charAt(0)
+    const rest = line.length > 1 ? line.substring(1) : ''
+    if (prefix === '+') {
+      if (newNum === 0) newNum = 1
+      const n = newNum++
+      return `<span class="da"><span class="ln">${padNum(n)}</span> ${escHtml('+ ' + rest)}</span>`
+    } else if (prefix === '-') {
+      if (oldNum === 0) oldNum = 1
+      const n = oldNum++
+      return `<span class="dd"><span class="ln">${padNum(n)}</span> ${escHtml('- ' + rest)}</span>`
+    } else if (prefix === ' ') {
+      if (oldNum === 0) oldNum = 1
+      if (newNum === 0) newNum = 1
+      const n = oldNum++; newNum++
+      return `<span class="dc"><span class="ln">${padNum(n)}</span> ${escHtml('  ' + rest)}</span>`
+    }
     return `<span class="dc">${escHtml(line)}</span>`
   }).join('')
+}
+
+function padNum(n: number): string {
+  return String(n).padStart(4)
 }
 
 function escHtml(s: string): string {
@@ -377,8 +410,104 @@ function escHtml(s: string): string {
 }
 
 // ============================================================
-// 页面级 todo 渲染
+// 渲染缓存（SPA 重新进入页面时恢复 diff/todo 卡片）
 // ============================================================
+
+interface _RenderEntry {
+  type: 'diff' | 'todo'
+  data: any
+}
+
+const _renderCache = new Map<number, _RenderEntry>()
+const RC_KEY = 'bai_rc'
+
+function _saveRC(): void {
+  try { localStorage.setItem(RC_KEY, JSON.stringify(Array.from(_renderCache.entries()))) } catch {}
+}
+
+function _loadRC(): void {
+  try {
+    const raw = localStorage.getItem(RC_KEY)
+    if (raw) {
+      const entries: [number, _RenderEntry][] = JSON.parse(raw)
+      _renderCache.clear()
+      for (const [k, v] of entries) _renderCache.set(k, v)
+    }
+  } catch { _renderCache.clear() }
+}
+
+function _findMsgIdx(el: HTMLElement): number {
+  const sels = [
+    '[data-message-author-role="assistant"]',
+    '[data-testid="ai-message"]',
+    '.ds-assistant-message-main-content',
+  ]
+  for (const sel of sels) {
+    const els = document.querySelectorAll<HTMLElement>(sel)
+    const idx = Array.from(els).indexOf(el)
+    if (idx >= 0) return idx
+  }
+  return -1
+}
+
+function findAIMessageByIndex(idx: number): HTMLElement | null {
+  const sels = [
+    '[data-message-author-role="assistant"]',
+    '[data-testid="ai-message"]',
+    '.ds-assistant-message-main-content',
+  ]
+  for (const sel of sels) {
+    const els = document.querySelectorAll<HTMLElement>(sel)
+    if (els.length > idx) return els[idx]
+  }
+  const fallback = document.querySelectorAll<HTMLElement>('[class*="assistant-message"],[class*="ai-message"]')
+  if (fallback.length > idx) return fallback[idx]
+  return null
+}
+
+function reapplyRenderedCards(): void {
+  _loadRC()
+  if (_renderCache.size === 0) return
+  for (const [msgIdx, entry] of _renderCache) {
+    const msgEl = findAIMessageByIndex(msgIdx)
+    if (!msgEl) continue
+    if (entry.type === 'diff') {
+      if (msgEl.querySelector('.bai-df')) continue
+      _renderDiff(msgEl, entry.data.type, entry.data.filePath, entry.data.diffText)
+    } else if (entry.type === 'todo') {
+      if (msgEl.querySelector('.bai-td')) continue
+      _renderTodo(msgEl, entry.data.todos, entry.data.message)
+    }
+  }
+}
+
+function _renderDiff(msgEl: HTMLElement, type: string, filePath: string, diffText: string): void {
+  const icon = type === 'edit' ? '✏️' : '📝'
+  const label = type === 'edit' ? 'Edited' : 'Created'
+  const el = document.createElement('div')
+  el.className = 'bai-df'
+  el.innerHTML = `<div class="bai-df-hdr">${icon} <span>${escHtml(filePath)}</span> <span style="color:#94a3b8;font-weight:400">— ${label}</span></div><pre class="bai-df-bd">${diffToHtml(diffText)}</pre>`
+  msgEl.appendChild(el)
+}
+
+function _renderTodo(msgEl: HTMLElement, todos: Array<{id:number;text:string;done:boolean}>, message: string): void {
+  const el = document.createElement('div')
+  el.className = 'bai-td'
+  let body: string
+  if (todos.length === 0) {
+    body = `<div class="bai-td-em">${escHtml(message)}</div>`
+  } else {
+    body = todos.map(t =>
+      `<div class="bai-td-it">` +
+      `<span class="cb ${t.done?'done':'pend'}">${t.done?'✓':' '}</span>` +
+      `<span class="num">${t.id}.</span>` +
+      `<span class="txt${t.done?' done':''}">${escHtml(t.text)}</span>` +
+      `</div>`
+    ).join('')
+  }
+  el.innerHTML = `<div class="bai-td-hdr">📋 To-Do</div><div class="bai-td-bd">${body}</div>`
+  msgEl.appendChild(el)
+}
 
 function renderTodoOnPage(todos: Array<{id:number;text:string;done:boolean}>, message: string): void {
   injectDiffCSS()
@@ -387,6 +516,13 @@ function renderTodoOnPage(todos: Array<{id:number;text:string;done:boolean}>, me
   // 替换已有 todo 卡片，避免流式输出重复渲染
   const existing = msgEl.querySelector('.bai-td')
   if (existing) existing.remove()
+
+  // 保存到渲染缓存
+  const idx = _findMsgIdx(msgEl)
+  if (idx >= 0) {
+    _renderCache.set(idx, { type: 'todo', data: { todos, message } })
+    _saveRC()
+  }
 
   const el = document.createElement('div')
   el.className = 'bai-td'

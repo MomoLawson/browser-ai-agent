@@ -72,10 +72,11 @@ export class AgentLoop {
   private running = false
   private lastMessageCount = 0
   private lastContentHash = ''
-  private lastToolSig = '' // 上次检测到的 "msgIdx:toolsig"，内容增长但工具相同时跳过
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private pendingTasks: Array<() => Promise<void>> = []
   private isProcessing = false
+  private _processedToolKeys = new Set<string>()
+  private _lastProcessedMsgIdx = -1
 
   constructor(options: AgentLoopOptions) {
     this.options = options
@@ -191,17 +192,23 @@ export class AgentLoop {
       return false
     }
 
-    // 工具签名防重：同一条消息内容增长但工具集合不变时跳过
-    const sig = `${msgIdx}:${tools.map(t => `${t.type}:${t.todoAction || ''}`).sort().join(',')}`
-    if (sig && sig === this.lastToolSig) {
-      console.log('[BAI] 跳过已有工具签名:', sig)
-      return false
+    // 每条消息独立追踪已执行的工具（流式输出时内容增长但工具不变则跳过）
+    if (msgIdx !== this._lastProcessedMsgIdx) {
+      this._processedToolKeys.clear()
+      this._lastProcessedMsgIdx = msgIdx
     }
-    this.lastToolSig = sig
 
     let hasOutput = false
     for (const tool of tools) {
       if (tool.confidence < 0.6) continue
+
+      // 单个工具粒度去重
+      const key = this._toolKey(tool)
+      if (this._processedToolKeys.has(key)) {
+        console.log('[BAI] 跳过已执行工具:', key)
+        continue
+      }
+      this._processedToolKeys.add(key)
 
       this.options.onLog('info', `🔍 检测到 AI 需要操作: ${this.describeTool(tool)}`)
 
@@ -584,6 +591,21 @@ export class AgentLoop {
       case 'grep_code': return `搜索内容 ${tool.pattern}`
       case 'todo': return `To-Do: ${tool.todoAction || 'list'}`
     }
+  }
+
+  /** 生成单个工具的唯一 key（用于流式去重） */
+  private _toolKey(t: ToolCall): string {
+    let k = t.type
+    if (t.type === 'todo') {
+      k += ':' + (t.todoAction || 'list')
+      if (t.todoId) k += ':' + t.todoId
+      if (t.todoText) k += ':' + t.todoText
+    } else if (t.filePath) {
+      k += ':' + t.filePath
+    } else if (t.pattern) {
+      k += ':' + t.pattern
+    }
+    return k
   }
 
   /** 获取当前 AI 消息数（用于重置计数器） */
