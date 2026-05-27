@@ -31,7 +31,7 @@ import { loadTodos, addTodo, toggleTodo, removeTodo, clearTodos, formatTodoText,
 // ============================================================
 
 export interface ToolCall {
-  type: 'read_file' | 'write_file' | 'edit_file' | 'list_files' | 'search_code' | 'grep_code' | 'todo' | 'search_web' | 'fetch_web'
+  type: 'read_file' | 'write_file' | 'edit_file' | 'list_files' | 'search_code' | 'grep_code' | 'todo' | 'search_web' | 'fetch_web' | 'diagnose_file'
   filePath?: string
   content?: string
   newContent?: string
@@ -219,7 +219,7 @@ export class AgentLoop {
 
         // 单个工具粒度去重：读取类工具跨消息去重，写入类工具当前消息内去重
         const key = this._toolKey(tool)
-        const isReadOnly = tool.type === 'list_files' || tool.type === 'search_code' || tool.type === 'grep_code' || tool.type === 'search_web' || tool.type === 'fetch_web'
+        const isReadOnly = tool.type === 'list_files' || tool.type === 'search_code' || tool.type === 'grep_code' || tool.type === 'search_web' || tool.type === 'fetch_web' || tool.type === 'diagnose_file'
         if (isReadOnly ? this._sessionToolKeys.has(key) : this._processedToolKeys.has(key)) {
           console.log('[BAI] 跳过已执行工具:', key)
           continue
@@ -458,6 +458,15 @@ export class AgentLoop {
       tools.push({ type: 'fetch_web', url: m[1].trim(), confidence: 0.95 })
     }
 
+    // [diagnose: filepath] — LSP 诊断
+    const diagnoseMatches = content.matchAll(/\[(?:diagnose|诊断)[：:]\s*([^\]]+)\]/g)
+    for (const m of diagnoseMatches) {
+      const fp = m[1].trim()
+      if (fp.length >= 3 && (fp.includes('/') || fp.includes('.') || fp.includes('\\'))) {
+        tools.push({ type: 'diagnose_file', filePath: fp, confidence: 0.95 })
+      }
+    }
+
     return tools
   }
 
@@ -640,6 +649,28 @@ export class AgentLoop {
           this.options.onLog('success', `Fetched ${text.length} chars`)
           break
         }
+
+        case 'diagnose_file': {
+          if (!tool.filePath) throw new Error('diagnose filepath required')
+          if (!this.dirHandle) throw new Error('project not connected')
+          this.options.onLog('info', `🔬 Diagnosing: ${tool.filePath}`)
+          const content = await readFile(this.dirHandle, tool.filePath)
+          const { diagnose } = await import('./lsp/core')
+          const result = await diagnose(tool.filePath, content)
+          if (!result) {
+            this.options.injectText(`[Tool: Diagnose] ${tool.filePath}\nNo diagnostics available for this file type`)
+          } else {
+            this.options.injectText(result.toText())
+            if (result.diagnostics.length > 0) {
+              const errors = result.diagnostics.filter(d => d.severity === 'error').length
+              const warnings = result.diagnostics.filter(d => d.severity === 'warning').length
+              this.options.onLog(errors > 0 ? 'error' : 'warn', `${tool.filePath}: ${errors} error(s), ${warnings} warning(s)`)
+            } else {
+              this.options.onLog('success', `${tool.filePath}: no issues`)
+            }
+          }
+          break
+        }
     }
   }
 
@@ -677,6 +708,7 @@ export class AgentLoop {
       case 'todo': return `To-Do: ${tool.todoAction || 'list'}`
       case 'search_web': return `Web: ${tool.pattern}`
       case 'fetch_web': return `Fetch: ${tool.url}`
+      case 'diagnose_file': return `Diagnose: ${tool.filePath}`
     }
   }
 
