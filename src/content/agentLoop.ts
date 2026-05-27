@@ -99,16 +99,16 @@ export class AgentLoop {
   /** 连接项目文件夹 */
   setDirectory(handle: FileSystemDirectoryHandle): void {
     this.dirHandle = handle
-    this.options.onLog('success', `📁 项目已连接，Agent 开始监听对话`)
-    this.options.onStatus('已连接项目，等待 AI 指令...')
+    this.options.onLog('success', `Project connected, agent listening`)
+    this.options.onStatus('Project connected, waiting for AI...')
   }
 
   /** 断开项目 */
   clearDirectory(): void {
     this.dirHandle = null
     this.running = false
-    this.options.onLog('warn', '🔌 项目已断开')
-    this.options.onStatus('项目已断开')
+    this.options.onLog('warn', 'Project disconnected')
+    this.options.onStatus('Project disconnected')
   }
 
   /** 是否已连接项目 */
@@ -121,7 +121,7 @@ export class AgentLoop {
     if (this.running) return
     this.running = true
     this.lastMessageCount = skipExisting
-    this.options.onLog('info', `🎧 开始监听 AI 对话（跳过 ${skipExisting} 条已有消息）`)
+    this.options.onLog('info', `Listening (skipped ${skipExisting} existing messages)`)
     const pid = (this as any)._pid = Date.now()
     console.log('[BAI Agent] 轮询已启动 pid=', pid)
 
@@ -138,7 +138,7 @@ export class AgentLoop {
       clearInterval(this.pollTimer)
       this.pollTimer = null
     }
-    this.options.onLog('warn', '⏹️ 监听已停止')
+    this.options.onLog('warn', 'Listening stopped')
   }
 
   // ============================================================
@@ -171,7 +171,7 @@ export class AgentLoop {
           newMessages = aiMessages.slice(-1)
         }
         this.lastContentHash = currentHash
-        if (newMessages.length > 0) this.options.onLog('info', `📩 检测到 AI 新消息`)
+        if (newMessages.length > 0) this.options.onLog('info', `New AI message detected`)
 
         for (let i = 0; i < newMessages.length; i++) {
           const msg = newMessages[i]
@@ -182,7 +182,7 @@ export class AgentLoop {
       } else if (aiMessages.length === 0 && this.lastMessageCount === 0) {
         // 首次轮询没找到消息 — 只报一次
         this.lastMessageCount = -1
-        this.options.onLog('warn', `⚠️ 未检测到AI消息，正在监听中...`)
+        this.options.onLog('warn', `No AI messages detected, listening...`)
       }
     } catch {
       // 轮询失败静默处理（可能是 DOM 暂时不可用）
@@ -230,14 +230,14 @@ export class AgentLoop {
         this._processedToolKeys.add(key)
         if (isReadOnly) this._sessionToolKeys.add(key)
 
-        this.options.onLog('info', `🔍 检测到 AI 需要操作: ${this.describeTool(tool)}`)
+        this.options.onLog('info', `Detected tool: ${this.describeTool(tool)}`)
 
         try {
           await this.executeTool(tool)
           hasOutput = true
         } catch (err) {
           const msg = (err as Error).message
-          this.options.onLog('error', `❌ 操作失败: ${msg}`)
+          this.options.onLog('error', `❌ Failed: ${msg}`)
           this.options.injectText(`❌ ${msg}`)
           hasOutput = true
         }
@@ -485,85 +485,85 @@ export class AgentLoop {
   // ============================================================
 
   private async executeTool(tool: ToolCall): Promise<void> {
-    if (!this.dirHandle) throw new Error('未连接项目')
+    if (!this.dirHandle) throw new Error('Project not connected')
 
     // 验证权限
     const ok = await verifyPermission(this.dirHandle)
     if (!ok) {
-      this.options.onLog('error', '⚠️ 文件夹权限已失效，请在面板中重新选择项目')
+      this.options.onLog('error', 'Folder permission expired, re-select project in panel')
       return
     }
 
     switch (tool.type) {
         case 'list_files': {
-          this.options.onLog('info', '📂 正在列出项目文件...')
+          this.options.onLog('info', 'Listing project files...')
           const tree = await readDirectoryStructure(this.dirHandle)
           const summary = this.formatFileTree(tree)
           this.options.injectText(`[Tool: List]\n\`\`\`\n${stripMarkdownTicks(summary)}\n\`\`\`\n`)
-          this.options.onLog('success', `✅ 已列出 ${countFiles(tree)} 个文件`)
+          this.options.onLog('success', `Listed ${countFiles(tree)} files`)
           break
         }
 
         case 'read_file': {
-          if (!tool.filePath) throw new Error('未指定文件路径')
+          if (!tool.filePath) throw new Error('File path required')
           if (!(await checkFilePermission(tool.filePath, 'read'))) throw new Error(`Permission denied: ${tool.filePath}`)
-          this.options.onLog('info', `📖 正在读取: ${tool.filePath}`)
+          this.options.onLog('info', `Reading: ${tool.filePath}`)
           const content = await readFile(this.dirHandle, tool.filePath)
           this.options.injectText(`[Tool: Read]\n\`${tool.filePath}\`\n\`\`\`\n${content}\n\`\`\`\n`)
-          this.options.onLog('success', `✅ 已读取 ${tool.filePath} (${content.length} 字符)`)
+          this.options.onLog('success', `Read ${tool.filePath} (${content.length} chars)`)
           break
         }
 
         case 'edit_file': {
-          if (!tool.filePath || !tool.content || !tool.newContent) throw new Error('缺少路径或内容')
+          if (!tool.filePath || !tool.content || !tool.newContent) throw new Error('Missing path or content')
           if (!(await checkFilePermission(tool.filePath, 'write'))) throw new Error(`Permission denied: ${tool.filePath}`)
-          this.options.onLog('info', `✏️ 正在编辑: ${tool.filePath}`)
+          this.options.onLog('info', `Editing: ${tool.filePath}`)
           await editFile(this.dirHandle, tool.filePath, tool.content, tool.newContent)
           const hunks = computeDiff(tool.content, tool.newContent)
           const diffText = formatDiffText(hunks)
           this.options.injectText(`[Tool: Edit]\n\`${tool.filePath}\` ✅ Edited`)
           this.options.onToolResult?.({ type: 'edit', filePath: tool.filePath, diff: diffText })
-          this.options.onLog('success', `✅ 已编辑 ${tool.filePath}`)
+          this.options.onLog('success', `Edited ${tool.filePath}`)
           break
         }
 
         case 'write_file': {
-          if (!tool.filePath || tool.content === undefined) throw new Error('未指定文件路径或内容')
+          if (!tool.filePath || tool.content === undefined) throw new Error('File path and content required')
           if (!(await checkFilePermission(tool.filePath, 'write'))) throw new Error(`Permission denied: ${tool.filePath}`)
           const exists = await fileExists(this.dirHandle, tool.filePath)
           if (exists) {
             throw new Error(
-              `\`${tool.filePath}\` 已存在。请使用 [edit: ${tool.filePath}] 修改，` +
-              `先 [read: ${tool.filePath}] 确认内容后再 edit。`
+              `\`${tool.filePath}\` already exists. Use [edit: ${tool.filePath}] to modify, ` +
+              `or [read: ${tool.filePath}] to view first.`
             )
           }
-          this.options.onLog('info', `📝 正在创建: ${tool.filePath}`)
+          this.options.onLog('info', `Creating: ${tool.filePath}`)
           await writeFile(this.dirHandle, tool.filePath, tool.content)
           const diffBody = tool.content.split('\n').map(l => `+${l}`).join('\n')
           this.options.injectText(`[Tool: Write]\n\`${tool.filePath}\` ✅ Created`)
           this.options.onToolResult?.({ type: 'write', filePath: tool.filePath, diff: diffBody })
-          this.options.onLog('success', `✅ 已创建 ${tool.filePath}`)
+          this.options.onLog('success', `Created ${tool.filePath}`)
           break
         }
 
         case 'search_code': {
-          if (!tool.pattern) throw new Error('未指定搜索模式')
-          this.options.onLog('info', `🔍 搜索文件: ${tool.pattern}`)
+          if (!tool.pattern) throw new Error('Search pattern required')
+          this.options.onLog('info', `Searching files: ${tool.pattern}`)
           const files = await searchFiles(this.dirHandle, tool.pattern)
           const result = files.length > 0
             ? `[Tool: Search]\nPattern: ${tool.pattern}\n${files.map(f=>`  ${f}`).join('\n')}`
             : `[Tool: Search]\nPattern: ${tool.pattern}\n(no matches)`
           this.options.injectText(result)
-          this.options.onLog('success', `搜索完成: ${files.length} 个文件`)
+          this.options.onLog('success', `Found ${files.length} files`)
           break
         }
 
         case 'grep_code': {
-          if (!tool.pattern) throw new Error('未指定搜索模式')
+          if (!tool.pattern) throw new Error('Search pattern required')
           this.options.onLog('info', `🔎 grep: ${tool.pattern}`)
           const raw = await grepFiles(this.dirHandle, tool.pattern)
           this.options.injectText(`[Tool: Grep]\nPattern: ${tool.pattern}\n${raw}`)
-          this.options.onLog('success', 'grep 完成')
+          this.options.onLog('success', 'Grep completed')
           break
         }
 
@@ -574,20 +574,20 @@ export class AgentLoop {
           let msg = ''
           switch (action) {
             case 'add': {
-              if (!tool.todoText) throw new Error('todo 缺少描述文字')
+              if (!tool.todoText) throw new Error('Todo description required')
               todos = addTodo(project, tool.todoText)
               msg = `✅ To-Do added: ${tool.todoText}`
               break
             }
             case 'done': {
-              if (!tool.todoId) throw new Error('todo 缺少编号')
+              if (!tool.todoId) throw new Error('Todo ID required')
               todos = toggleTodo(project, tool.todoId)
               const t = todos.find(x => x.id === tool.todoId)
               msg = t?.done ? `✅ To-Do #${tool.todoId} completed` : `↩️ To-Do #${tool.todoId} reopened`
               break
             }
             case 'remove': {
-              if (!tool.todoId) throw new Error('todo 缺少编号')
+              if (!tool.todoId) throw new Error('Todo ID required')
               todos = removeTodo(project, tool.todoId)
               msg = `🗑️ To-Do #${tool.todoId} removed`
               break
@@ -727,12 +727,12 @@ export class AgentLoop {
 
   private describeTool(tool: ToolCall): string {
     switch (tool.type) {
-      case 'read_file': return `读取 ${tool.filePath}`
-      case 'write_file': return `写入 ${tool.filePath}`
-      case 'edit_file': return `编辑 ${tool.filePath}`
-      case 'list_files': return '列出项目文件'
-      case 'search_code': return `搜索文件 ${tool.pattern}`
-      case 'grep_code': return `搜索内容 ${tool.pattern}`
+      case 'read_file': return `Read ${tool.filePath}`
+      case 'write_file': return `Write ${tool.filePath}`
+      case 'edit_file': return `Edit ${tool.filePath}`
+      case 'list_files': return 'List project files'
+      case 'search_code': return `Search ${tool.pattern}`
+      case 'grep_code': return `Grep ${tool.pattern}`
       case 'todo': return `To-Do: ${tool.todoAction || 'list'}`
       case 'search_web': return `Web: ${tool.pattern}`
       case 'fetch_web': return `Fetch: ${tool.url}`
