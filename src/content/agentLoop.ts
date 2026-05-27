@@ -282,19 +282,19 @@ export class AgentLoop {
       // Markdown 渲染后语言标记可能是 `[edit: path]`、`[list]`（作为 info string）
       if (lang.startsWith('[')) {
         // 带路径: [edit: path] [read: path] [write: path] [search: ...] [grep: ...]
-        const toolInTag = lang.match(/\[(edit|read|write|search|grep|搜索|搜索内容)[：:]\s*([^\]]+)\]/)
+        const toolInTag = lang.match(/\[(edit|read|write|search|grep)[：:]\s*([^\]]+)\]/)
         if (toolInTag) {
           const fp = toolInTag[2].trim()
           const t = toolInTag[1]
           if (t === 'edit') tools.push(...this.detectPatterns(`[edit: ${fp}]\n${inner}\n[/edit]`))
           else if (t === 'read') tools.push({ type: 'read_file', filePath: fp, confidence: 0.9 })
           else if (t === 'write') tools.push(...this.detectPatterns(`[write: ${fp}]\n${inner}`))
-          else if (t === 'search' || t === '搜索') { if (fp.length >= 2) tools.push({ type: 'search_code', pattern: fp, confidence: 0.9 }) }
-          else if (t === 'grep' || t === '搜索内容') { if (fp.length >= 2) tools.push({ type: 'grep_code', pattern: fp, confidence: 0.9 }) }
+          else if (t === 'search') { if (fp.length >= 2) tools.push({ type: 'search_code', pattern: fp, confidence: 0.9 }) }
+          else if (t === 'grep') { if (fp.length >= 2) tools.push({ type: 'grep_code', pattern: fp, confidence: 0.9 }) }
           continue
         }
         // 无路径的标记: [list]
-        if (/\[(?:list|列出|文件列表)\]/.test(lang)) {
+        if (/\[(?:list)\]/.test(lang)) {
           tools.push({ type: 'list_files', confidence: 0.95 })
           continue
         }
@@ -327,7 +327,7 @@ export class AgentLoop {
     // === 模式 1：显式结构化标记 ===
 
     // [read: path] 或 [读取: path] — 支持一行多个，路径至少 3 字符
-    const readMatches = content.matchAll(/\[(?:read|读取)[：:]\s*([^\]]+)\]/g)
+    const readMatches = content.matchAll(/\[(?:read)[：:]\s*([^\]]+)\]/g)
     for (const m of readMatches) {
       const fp = m[1].trim()
       if (fp.length >= 3 && (fp.includes('/') || fp.includes('.') || fp.includes('\\'))) {
@@ -336,14 +336,14 @@ export class AgentLoop {
     }
 
     // [grep: pattern] — 文件内容搜索
-    const grepMatches = content.matchAll(/\[(?:grep|搜索内容)[：:]\s*(.+?)\]/g)
+    const grepMatches = content.matchAll(/\[(?:grep)[：:]\s*(.+?)\]/g)
     for (const grepMatch of grepMatches) {
       const p = grepMatch[1].trim()
       if (p.length >= 2) tools.push({ type: 'grep_code', pattern: p, confidence: 0.95 })
     }
 
     // [list] 或 [列出文件]（可出现在回复中的任意位置）
-    if (/\[(?:list|列出|文件列表)\]/.test(content)) {
+    if (/\[(?:list)\]/.test(content)) {
       tools.push({ type: 'list_files', confidence: 0.95 })
     }
 
@@ -358,7 +358,7 @@ export class AgentLoop {
     for (const tm of todoMatches) {
       const cmd = tm[1].trim()
       // [todo: add "text"]
-      const addM = cmd.match(/^(?:add|添加)\s+"([^"]+)"|^(?:add|添加)\s+'([^']+)'|^(?:add|添加)\s+(.+)/)
+      const addM = cmd.match(/^add\s+"([^"]+)"|^add\s+'([^']+)'|^add\s+(.+)/)
       if (addM) {
         const text = addM[1] || addM[2] || addM[3]
         if (text && text.length >= 1) {
@@ -367,19 +367,19 @@ export class AgentLoop {
         }
       }
       // [todo: done N] / [todo: check N] / [todo: complete N]
-      const doneM = cmd.match(/^(?:done|check|complete|完成)\s+(\d+)/)
+      const doneM = cmd.match(/^(?:done|check|complete)\s+(\d+)/)
       if (doneM) {
         tools.push({ type: 'todo', todoAction: 'done', todoId: parseInt(doneM[1]), confidence: 0.95 })
         continue
       }
       // [todo: remove N] / [todo: rm N] / [todo: delete N] / [todo: 删除 N]
-      const rmM = cmd.match(/^(?:remove|rm|delete|删除)\s+(\d+)/)
+      const rmM = cmd.match(/^(?:remove|rm|delete)\s+(\d+)/)
       if (rmM) {
         tools.push({ type: 'todo', todoAction: 'remove', todoId: parseInt(rmM[1]), confidence: 0.95 })
         continue
       }
       // [todo: clear] / [todo: 清除]
-      if (/^(?:clear|清除)$/.test(cmd)) {
+      if (/^clear$/.test(cmd)) {
         tools.push({ type: 'todo', todoAction: 'clear', confidence: 0.95 })
         continue
       }
@@ -388,7 +388,7 @@ export class AgentLoop {
     }
 
     // [edit: path] old\n====\nnew [/edit] — 必须包含 [/edit] 闭包（防止流式输出时误匹配）
-    const editMatches = content.matchAll(/\[(?:edit|编辑)[：:]\s*([^\]]+)\]\s*([\s\S]*?)(?:\[\/(?:edit|编辑)\])/g)
+    const editMatches = content.matchAll(/\[(?:edit)[：:]\s*([^\]]+)\]\s*([\s\S]*?)(?:\[\/(?:edit)\])/g)
     for (const editBlock of editMatches) {
       console.log('[BAI Agent] 检测到 edit:', editBlock[1], '| body:', editBlock[2].substring(0, 60))
       // 找分隔符：优先匹配单独成行的 ==== 或 ---
@@ -429,7 +429,7 @@ export class AgentLoop {
     }
 
     // [write: path] ... [/write] — 必须包含 [/write] 闭包（防止流式输出时写入不完整内容）
-    const writeMatches = content.matchAll(/\[(?:write|写入)[：:]\s*([^\]]+)\]\s*([\s\S]*?)(?:\[\/(?:write|写入)\]|(?=\[))/g)
+    const writeMatches = content.matchAll(/\[(?:write)[：:]\s*([^\]]+)\]\s*([\s\S]*?)(?:\[\/(?:write)\]|(?=\[))/g)
     for (const writeBlock of writeMatches) {
       tools.push({
         type: 'write_file',
@@ -440,7 +440,7 @@ export class AgentLoop {
     }
 
     // [search: pattern] 或 [搜索: pattern]（pattern 至少 2 字符）
-    const searchMatches = content.matchAll(/\[(?:search|搜索)[：:]\s*([^\]]+)\]/g)
+    const searchMatches = content.matchAll(/\[(?:search)[：:]\s*([^\]]+)\]/g)
     for (const searchMatch of searchMatches) {
       const p = searchMatch[1].trim()
       if (p.length >= 2) {
@@ -462,7 +462,7 @@ export class AgentLoop {
     }
 
     // [diagnose: filepath] — LSP 诊断
-    const diagnoseMatches = content.matchAll(/\[(?:diagnose|诊断)[：:]\s*([^\]]+)\]/g)
+    const diagnoseMatches = content.matchAll(/\[(?:diagnose)[：:]\s*([^\]]+)\]/g)
     for (const m of diagnoseMatches) {
       const fp = m[1].trim()
       if (fp.length >= 3 && (fp.includes('/') || fp.includes('.') || fp.includes('\\'))) {
