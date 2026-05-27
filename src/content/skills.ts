@@ -1,5 +1,5 @@
 /**
- * Skills — 从项目 .bai/skills/ 目录加载技能模板
+ * Skills — 内置技能 + 项目 .bai/skills/ 用户技能
  *
  * 技能文件格式（Markdown + YAML frontmatter）：
  * ---
@@ -10,6 +10,8 @@
  * 详细内容...
  */
 
+import { BUILTIN_SKILLS } from './builtin-skills'
+
 export interface Skill {
   name: string
   description: string
@@ -17,10 +19,8 @@ export interface Skill {
   body: string      // 去掉 frontmatter 后的正文
 }
 
-const SKILL_DIR = '.bai/skills'
-
-// 缓存当前项目的技能
-let _skills: Skill[] = []
+// 缓存当前项目的技能（内置 + 用户）
+let _skills: Skill[] = [...BUILTIN_SKILLS]
 
 function parseFrontmatter(raw: string): { meta: Record<string, string>; body: string } {
   const match = raw.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/)
@@ -38,35 +38,35 @@ function parseFrontmatter(raw: string): { meta: Record<string, string>; body: st
  * 扫描 .bai/skills/ 目录，加载所有技能
  */
 export async function loadSkills(dirHandle: FileSystemDirectoryHandle): Promise<Skill[]> {
-  _skills = []
+  const userSkills: Skill[] = []
   try {
-    // 检查 .bai 目录是否存在
     const baiDir = await dirHandle.getDirectoryHandle('.bai').catch(() => null)
-    if (!baiDir) return _skills
-
-    const skillsDir = await baiDir.getDirectoryHandle('skills').catch(() => null)
-    if (!skillsDir) return _skills
-
-    const entries: Skill[] = []
-    for await (const [name, handle] of skillsDir as any) {
-      if (handle.kind !== 'file') continue
-      if (!name.endsWith('.md')) continue
-
-      try {
-        const file = await handle.getFile()
-        const raw = await file.text()
-        const { meta, body } = parseFrontmatter(raw)
-        entries.push({
-          name: meta.name || name.replace(/\.md$/, ''),
-          description: meta.description || '',
-          content: raw,
-          body,
-        })
-      } catch { /* 跳过无法读取的文件 */ }
+    if (baiDir) {
+      const skillsDir = await baiDir.getDirectoryHandle('skills').catch(() => null)
+      if (skillsDir) {
+        for await (const [name, handle] of skillsDir as any) {
+          if (handle.kind !== 'file' || !name.endsWith('.md')) continue
+          try {
+            const file = await handle.getFile()
+            const raw = await file.text()
+            const { meta, body } = parseFrontmatter(raw)
+            userSkills.push({
+              name: meta.name || name.replace(/\.md$/, ''),
+              description: meta.description || '',
+              content: raw,
+              body,
+            })
+          } catch { /* skip */ }
+        }
+      }
     }
+  } catch { /* .bai 不存在 */ }
 
-    _skills = entries.sort((a, b) => a.name.localeCompare(b.name))
-  } catch { /* .bai 目录不存在，忽略 */ }
+  // 用户技能覆盖同名内置技能
+  const merged = new Map<string, Skill>()
+  for (const s of BUILTIN_SKILLS) merged.set(s.name.toLowerCase(), s)
+  for (const s of userSkills) merged.set(s.name.toLowerCase(), s)
+  _skills = [...merged.values()].sort((a, b) => a.name.localeCompare(b.name))
   return _skills
 }
 
