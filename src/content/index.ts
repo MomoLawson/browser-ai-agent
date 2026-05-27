@@ -423,17 +423,28 @@ const _renderCache = new Map<number, _RenderEntry>()
 const RC_KEY = 'bai_rc'
 
 function _saveRC(): void {
-  try { localStorage.setItem(RC_KEY, JSON.stringify(Array.from(_renderCache.entries()))) } catch {}
+  const count = countCurrentAIMessages()
+  try { localStorage.setItem(RC_KEY, JSON.stringify({ count, entries: Array.from(_renderCache.entries()) })) } catch {}
 }
 
 function _loadRC(): void {
   try {
     const raw = localStorage.getItem(RC_KEY)
-    if (raw) {
-      const entries: [number, _RenderEntry][] = JSON.parse(raw)
+    if (!raw) return
+    const obj = JSON.parse(raw)
+    // 兼容旧格式（纯数组）
+    if (Array.isArray(obj)) { _renderCache.clear(); for (const [k, v] of obj) _renderCache.set(k, v); return }
+    // 新格式：验证对话数是否一致（切换对话则清空缓存）
+    const savedCount = obj.count ?? 0
+    const currentCount = countCurrentAIMessages()
+    if (savedCount !== currentCount) {
+      console.log('[BAI] 对话切换，清空渲染缓存（保存时消息数', savedCount, '当前', currentCount, '）')
       _renderCache.clear()
-      for (const [k, v] of entries) _renderCache.set(k, v)
+      localStorage.removeItem(RC_KEY)
+      return
     }
+    _renderCache.clear()
+    for (const [k, v] of obj.entries) _renderCache.set(k, v)
   } catch { _renderCache.clear() }
 }
 

@@ -78,6 +78,7 @@ export class AgentLoop {
   private pendingTasks: Array<() => Promise<void>> = []
   private isProcessing = false
   private _processedToolKeys = new Set<string>()
+  private _sessionToolKeys = new Set<string>()   // read-only tools: list/search/grep dedup across messages
   private _lastProcessedMsgIdx = -1
   private _msgSent = new Set<number>()
 
@@ -210,13 +211,15 @@ export class AgentLoop {
       for (const tool of tools) {
         if (tool.confidence < 0.6) continue
 
-        // 单个工具粒度去重
+        // 单个工具粒度去重：读取类工具跨消息去重，写入类工具当前消息内去重
         const key = this._toolKey(tool)
-        if (this._processedToolKeys.has(key)) {
+        const isReadOnly = tool.type === 'list_files' || tool.type === 'search_code' || tool.type === 'grep_code'
+        if (isReadOnly ? this._sessionToolKeys.has(key) : this._processedToolKeys.has(key)) {
           console.log('[BAI] 跳过已执行工具:', key)
           continue
         }
         this._processedToolKeys.add(key)
+        if (isReadOnly) this._sessionToolKeys.add(key)
 
         this.options.onLog('info', `🔍 检测到 AI 需要操作: ${this.describeTool(tool)}`)
 
