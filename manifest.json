@@ -7,14 +7,7 @@
     "storage"
   ],
   "host_permissions": [
-    "https://chatgpt.com/*",
-    "https://chat.openai.com/*",
-    "https://claude.ai/*",
-    "https://gemini.google.com/*",
-    "https://chat.deepseek.com/*",
-    "https://kimi.moonshot.cn/*",
-    "https://www.doubao.com/*",
-    "https://yuanbao.tencent.com/*"
+    "<all_urls>"
   ],
   "content_scripts": [{
     "matches": [

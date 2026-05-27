@@ -4,7 +4,7 @@
  * 从 index.ts 中剥离，提供回调式 API。
  * Userscript 模式下不注册（chrome.runtime 不可用）。
  */
-import type { AgentMessage, AgentResponse, FileEntry } from '../shared/types'
+import type { AgentMessage, AgentResponse, FileEntry, SearchResult } from '../shared/types'
 
 export interface ExtensionActions {
   selectProject: () => Promise<{ name: string; fileCount: number; tree: FileEntry[] } | null>
@@ -14,6 +14,8 @@ export interface ExtensionActions {
     tree?: FileEntry[]
     projectInfo?: { name: string; fileCount: number }
   }>
+  webSearch?: (query: string) => Promise<SearchResult[]>
+  webFetch?: (url: string, maxLength?: number) => Promise<string>
 }
 
 export function registerExtensionHandler(actions: ExtensionActions): () => void {
@@ -57,6 +59,20 @@ async function handleMessage(
       const cmd = (msg.payload as { cmd?: string })?.cmd || ''
       const result = await actions.executeCommand(cmd)
       return { ...base, success: true, data: result }
+    }
+
+    case 'WEB_SEARCH': {
+      if (!actions.webSearch) return { ...base, success: false, error: 'webSearch not implemented' }
+      const { query } = msg.payload as { query: string }
+      const results = await actions.webSearch(query)
+      return { ...base, success: true, data: results }
+    }
+
+    case 'WEB_FETCH': {
+      if (!actions.webFetch) return { ...base, success: false, error: 'webFetch not implemented' }
+      const { url, maxLength } = msg.payload as { url: string; maxLength?: number }
+      const text = await actions.webFetch(url, maxLength)
+      return { ...base, success: true, data: text }
     }
 
     default:

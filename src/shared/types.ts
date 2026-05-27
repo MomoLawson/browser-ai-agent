@@ -67,6 +67,14 @@ export type AgentMessageType =
   | 'SELECT_PROJECT'
   | 'EXECUTE_TOOL'
   | 'UPDATE_SETTINGS'
+  | 'WEB_SEARCH'
+  | 'WEB_FETCH'
+
+export interface SearchResult {
+  title: string
+  url: string
+  snippet: string
+}
 
 export interface AgentMessage {
   type: AgentMessageType

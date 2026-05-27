@@ -13,7 +13,8 @@ import { detectPlatform, getPlatformDisplayName } from './platforms/detector'
 import { TriggerButton } from './ui/TriggerButton'
 import { AgentPanel } from './ui/AgentPanel'
 import { AgentLoop } from './agentLoop'
-import type { FileEntry } from '../shared/types'
+import type { FileEntry, SearchResult } from '../shared/types'
+import { sendMessageToBackground } from '../shared/messaging'
 import { selectProjectFolder, readDirectoryStructure, readFile, writeFile, verifyPermission, countFiles } from './fileSystem'
 import { saveHandle, saveProjectName } from './handleStore'
 import { fillInput, appendToInput, simulateSend } from './injectUtils'
@@ -181,6 +182,17 @@ function startAgentLoop(): void {
     },
     onStatus: (text) => panel?.updateStatusBar(text),
     onPollEnd: () => reapplyRenderedCards(),
+    webSearch: async (q: string): Promise<SearchResult[]> => {
+      try {
+        const resp = await sendMessageToBackground({ type: 'WEB_SEARCH', id: crypto.randomUUID(), payload: { query: q } })
+        return resp.success ? (resp.data as SearchResult[]) : []
+      } catch { return [] }
+    },
+    webFetch: async (url: string, maxLen?: number): Promise<string> => {
+      const resp = await sendMessageToBackground({ type: 'WEB_FETCH', id: crypto.randomUUID(), payload: { url, maxLength: maxLen ?? 8000 } })
+      if (resp.success) return resp.data as string
+      throw new Error(resp.error || 'fetch failed')
+    },
   })
   agent.setDirectory(dirHandle)
   // 启动前跳过已有消息
@@ -252,6 +264,18 @@ registerExtensionHandler({
       tree,
       projectInfo: { name: dirHandle.name, fileCount: tree ? countFiles(tree) : 0 },
     }
+  },
+
+  webSearch: async (query: string): Promise<SearchResult[]> => {
+    const resp = await sendMessageToBackground({ type: 'WEB_SEARCH', id: crypto.randomUUID(), payload: { query } })
+    if (!resp.success) throw new Error(resp.error || 'web search failed')
+    return resp.data as SearchResult[]
+  },
+
+  webFetch: async (url: string, maxLength?: number): Promise<string> => {
+    const resp = await sendMessageToBackground({ type: 'WEB_FETCH', id: crypto.randomUUID(), payload: { url, maxLength } })
+    if (!resp.success) throw new Error(resp.error || 'web fetch failed')
+    return resp.data as string
   },
 })
 

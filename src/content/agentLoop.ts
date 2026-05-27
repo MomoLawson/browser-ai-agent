@@ -31,7 +31,7 @@ import { loadTodos, addTodo, toggleTodo, removeTodo, clearTodos, formatTodoText,
 // ============================================================
 
 export interface ToolCall {
-  type: 'read_file' | 'write_file' | 'edit_file' | 'list_files' | 'search_code' | 'grep_code' | 'todo'
+  type: 'read_file' | 'write_file' | 'edit_file' | 'list_files' | 'search_code' | 'grep_code' | 'todo' | 'search_web' | 'fetch_web'
   filePath?: string
   content?: string
   newContent?: string
@@ -41,6 +41,8 @@ export interface ToolCall {
   todoAction?: 'list' | 'add' | 'done' | 'remove' | 'clear'
   todoText?: string
   todoId?: number
+  // web 相关
+  url?: string
 }
 
 export interface AgentLoopOptions {
@@ -61,6 +63,10 @@ export interface AgentLoopOptions {
   onStatus: (text: string) => void
   /** 每次轮询后调用（用于恢复渲染卡片、DOM 重入等） */
   onPollEnd?: () => void
+  /** 网页搜索（跨域，通过 extension background 或 userscript） */
+  webSearch?: (query: string) => Promise<Array<{title:string;url:string;snippet:string}>>
+  /** 网页内容获取 */
+  webFetch?: (url: string, maxLength?: number) => Promise<string>
 }
 
 // ============================================================
@@ -439,6 +445,19 @@ export class AgentLoop {
       }
     }
 
+    // [search_web: query] — 网页搜索
+    const webSearchMatches = content.matchAll(/\[search_web[：:]\s*([^\]]+)\]/g)
+    for (const m of webSearchMatches) {
+      const q = m[1].trim()
+      if (q.length >= 2) tools.push({ type: 'search_web', pattern: q, confidence: 0.95 })
+    }
+
+    // [fetch: url] — 获取网页内容
+    const fetchMatches = content.matchAll(/\[fetch[：:]\s*(https?:\/\/[^\]]+)\]/g)
+    for (const m of fetchMatches) {
+      tools.push({ type: 'fetch_web', url: m[1].trim(), confidence: 0.95 })
+    }
+
     return tools
   }
 
@@ -568,6 +587,59 @@ export class AgentLoop {
           this.options.onLog('success', msg)
           break
         }
+
+        case 'search_web': {
+          if (!tool.pattern) throw new Error('web search query required')
+          this.options.onLog('info', `🌐 Searching web: ${tool.pattern}`)
+          let results: Array<{title:string;url:string;snippet:string}> = []
+          if (this.options.webSearch) {
+            results = await this.options.webSearch(tool.pattern)
+          } else {
+            const ddg = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(tool.pattern)}`
+            const r = await fetch(ddg, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+            const html = await r.text()
+            const blocks = html.split('class="result__body"')
+            for (let i = 1; i < blocks.length && results.length < 8; i++) {
+              const b = blocks[i]
+              const tm = b.match(/<a[^>]*class="result__a"[^>]*>([\s\S]*?)<\/a>/)
+              const um = b.match(/<a[^>]*class="result__url"[^>]*href="([^"]*)"/)
+              const sm = b.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/)
+              if (tm) results.push({ title: tm[1].replace(/<[^>]+>/g,'').trim(), url: um?.[1]??'', snippet: sm?.[1]?.replace(/<[^>]+>/g,'').trim()??'' })
+            }
+          }
+          const text = results.length > 0
+            ? results.map((r,i) => `${i+1}. ${r.title}\n   ${r.url}\n   ${r.snippet}`).join('\n\n')
+            : '(no results)'
+          this.options.injectText(`[Tool: Web Search] ${tool.pattern}\n${text}`)
+          this.options.onLog('success', `Found ${results.length} results`)
+          break
+        }
+
+        case 'fetch_web': {
+          if (!tool.url) throw new Error('fetch URL required')
+          this.options.onLog('info', `🌐 Fetching: ${tool.url}`)
+          let text = ''
+          if (this.options.webFetch) {
+            text = await this.options.webFetch(tool.url)
+          } else {
+            const controller = new AbortController()
+            const timer = setTimeout(() => controller.abort(), 15_000)
+            try {
+              const r = await fetch(tool.url, { signal: controller.signal, headers: { 'Accept': 'text/html' } })
+              const raw = await r.text()
+              text = raw
+                .replace(/<script[\s\S]*?<\/script>/gi, '')
+                .replace(/<style[\s\S]*?<\/style>/gi, '')
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .slice(0, 8000)
+            } finally { clearTimeout(timer) }
+          }
+          this.options.injectText(`[Tool: Fetch] ${tool.url}\n\`\`\`\n${text}\n\`\`\``)
+          this.options.onLog('success', `Fetched ${text.length} chars`)
+          break
+        }
     }
   }
 
@@ -603,6 +675,8 @@ export class AgentLoop {
       case 'search_code': return `搜索文件 ${tool.pattern}`
       case 'grep_code': return `搜索内容 ${tool.pattern}`
       case 'todo': return `To-Do: ${tool.todoAction || 'list'}`
+      case 'search_web': return `Web: ${tool.pattern}`
+      case 'fetch_web': return `Fetch: ${tool.url}`
     }
   }
 
@@ -613,6 +687,8 @@ export class AgentLoop {
       k += ':' + (t.todoAction || 'list')
       if (t.todoId) k += ':' + t.todoId
       if (t.todoText) k += ':' + t.todoText
+    } else if (t.url) {
+      k += ':' + t.url
     } else if (t.filePath) {
       k += ':' + t.filePath
     } else if (t.pattern) {
