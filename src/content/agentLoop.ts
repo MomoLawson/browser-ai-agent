@@ -25,6 +25,7 @@ import { countFiles } from './fileSystem'
 import { loadSettings, resolveLang, t, type Lang } from './settings'
 import { computeDiff, formatDiffText } from './diff'
 import { loadTodos, addTodo, toggleTodo, removeTodo, clearTodos, formatTodoText, type TodoItem } from './todo'
+import { checkFilePermission } from './permissions'
 
 // ============================================================
 // 类型
@@ -505,6 +506,7 @@ export class AgentLoop {
 
         case 'read_file': {
           if (!tool.filePath) throw new Error('未指定文件路径')
+          if (!(await checkFilePermission(tool.filePath, 'read'))) throw new Error(`Permission denied: ${tool.filePath}`)
           this.options.onLog('info', `📖 正在读取: ${tool.filePath}`)
           const content = await readFile(this.dirHandle, tool.filePath)
           this.options.injectText(`[Tool: Read]\n\`${tool.filePath}\`\n\`\`\`\n${content}\n\`\`\`\n`)
@@ -514,6 +516,7 @@ export class AgentLoop {
 
         case 'edit_file': {
           if (!tool.filePath || !tool.content || !tool.newContent) throw new Error('缺少路径或内容')
+          if (!(await checkFilePermission(tool.filePath, 'write'))) throw new Error(`Permission denied: ${tool.filePath}`)
           this.options.onLog('info', `✏️ 正在编辑: ${tool.filePath}`)
           await editFile(this.dirHandle, tool.filePath, tool.content, tool.newContent)
           const hunks = computeDiff(tool.content, tool.newContent)
@@ -526,6 +529,7 @@ export class AgentLoop {
 
         case 'write_file': {
           if (!tool.filePath || tool.content === undefined) throw new Error('未指定文件路径或内容')
+          if (!(await checkFilePermission(tool.filePath, 'write'))) throw new Error(`Permission denied: ${tool.filePath}`)
           const exists = await fileExists(this.dirHandle, tool.filePath)
           if (exists) {
             throw new Error(
@@ -662,6 +666,7 @@ export class AgentLoop {
         case 'diagnose_file': {
           if (!tool.filePath) throw new Error('diagnose filepath required')
           if (!this.dirHandle) throw new Error('project not connected')
+          if (!(await checkFilePermission(tool.filePath, 'read'))) throw new Error(`Permission denied: ${tool.filePath}`)
           this.options.onLog('info', `🔬 Diagnosing: ${tool.filePath}`)
           const content = await readFile(this.dirHandle, tool.filePath)
           const { diagnose } = await import('./lsp/core')
