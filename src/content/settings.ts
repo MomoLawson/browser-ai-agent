@@ -81,9 +81,10 @@ const PROMPT_BODY = [
   '[search_web: query]   Search the web (use for external knowledge, up-to-date info)',
   '[fetch: https://...]  Fetch and read a web page',
   '[diagnose: filepath]  Run LSP diagnostics on a file (type errors, warnings)',
+  '[skill: name]        View a skill\'s full content (see installed skills below)',
   '',
   'Rules:',
-  '- [list] [todo] [read] [search] [grep] [search_web] [fetch] [diagnose] go DIRECTLY in your reply, NEVER in ``` code blocks',
+  '- [list] [todo] [read] [search] [grep] [search_web] [fetch] [diagnose] [skill] go DIRECTLY in your reply, NEVER in ``` code blocks',
   '- [edit] [write] put inside a markdown code block (```) with the marker as the language tag',
   '- [write] FAILS if file already exists → use [read]+[edit] instead',
   '- [edit] requires old code to EXACTLY match file content',
@@ -101,11 +102,12 @@ const THINK_DIR: Record<Lang, string> = {
   'zh-TW': 'Think and respond in Traditional Chinese',
 }
 
-export function buildSystemPrompt(name: string, lang: Lang): string {
-  return PROMPT_BODY.map(line => line
+export function buildSystemPrompt(name: string, lang: Lang, skillList?: string): string {
+  const base = PROMPT_BODY.map(line => line
     .replace('{name}', name)
     .replace('{think_dir}', THINK_DIR[lang] || THINK_DIR['en-US'])
   ).join('\n')
+  return skillList ? base + '\n' + skillList : base
 }
 
 /** AgentLoop 中的工具执行反馈语言 */

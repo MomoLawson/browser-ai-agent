@@ -31,7 +31,7 @@ import { loadTodos, addTodo, toggleTodo, removeTodo, clearTodos, formatTodoText,
 // ============================================================
 
 export interface ToolCall {
-  type: 'read_file' | 'write_file' | 'edit_file' | 'list_files' | 'search_code' | 'grep_code' | 'todo' | 'search_web' | 'fetch_web' | 'diagnose_file'
+  type: 'read_file' | 'write_file' | 'edit_file' | 'list_files' | 'search_code' | 'grep_code' | 'todo' | 'search_web' | 'fetch_web' | 'diagnose_file' | 'skill'
   filePath?: string
   content?: string
   newContent?: string
@@ -43,6 +43,8 @@ export interface ToolCall {
   todoId?: number
   // web 相关
   url?: string
+  // skill 相关
+  skillName?: string
 }
 
 export interface AgentLoopOptions {
@@ -219,7 +221,7 @@ export class AgentLoop {
 
         // 单个工具粒度去重：读取类工具跨消息去重，写入类工具当前消息内去重
         const key = this._toolKey(tool)
-        const isReadOnly = tool.type === 'list_files' || tool.type === 'search_code' || tool.type === 'grep_code' || tool.type === 'search_web' || tool.type === 'fetch_web' || tool.type === 'diagnose_file'
+        const isReadOnly = tool.type === 'list_files' || tool.type === 'search_code' || tool.type === 'grep_code' || tool.type === 'search_web' || tool.type === 'fetch_web' || tool.type === 'diagnose_file' || tool.type === 'skill'
         if (isReadOnly ? this._sessionToolKeys.has(key) : this._processedToolKeys.has(key)) {
           console.log('[BAI] 跳过已执行工具:', key)
           continue
@@ -467,6 +469,13 @@ export class AgentLoop {
       }
     }
 
+    // [skill: name] — 查看技能详情
+    const skillMatches = content.matchAll(/\[skill[：:]\s*([^\]]+)\]/g)
+    for (const m of skillMatches) {
+      const name = m[1].trim()
+      if (name.length >= 2) tools.push({ type: 'skill', skillName: name, confidence: 0.95 })
+    }
+
     return tools
   }
 
@@ -671,6 +680,20 @@ export class AgentLoop {
           }
           break
         }
+
+        case 'skill': {
+          if (!tool.skillName) throw new Error('skill name required')
+          const { findSkill } = await import('./skills')
+          const skill = findSkill(tool.skillName)
+          if (!skill) {
+            this.options.injectText(`[Tool: Skill] Skill "${tool.skillName}" not found. Available: use [list] to see .bai/skills/`)
+            this.options.onLog('warn', `Skill not found: ${tool.skillName}`)
+          } else {
+            this.options.injectText(`[Tool: Skill: ${skill.name}]\n${skill.body}`)
+            this.options.onLog('success', `Loaded skill: ${skill.name}`)
+          }
+          break
+        }
     }
   }
 
@@ -709,6 +732,7 @@ export class AgentLoop {
       case 'search_web': return `Web: ${tool.pattern}`
       case 'fetch_web': return `Fetch: ${tool.url}`
       case 'diagnose_file': return `Diagnose: ${tool.filePath}`
+      case 'skill': return `Skill: ${tool.skillName}`
     }
   }
 
@@ -719,6 +743,8 @@ export class AgentLoop {
       k += ':' + (t.todoAction || 'list')
       if (t.todoId) k += ':' + t.todoId
       if (t.todoText) k += ':' + t.todoText
+    } else if (t.skillName) {
+      k += ':' + t.skillName
     } else if (t.url) {
       k += ':' + t.url
     } else if (t.filePath) {

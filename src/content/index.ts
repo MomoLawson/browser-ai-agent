@@ -16,6 +16,7 @@ import { AgentLoop } from './agentLoop'
 import type { FileEntry, SearchResult } from '../shared/types'
 import { sendMessageToBackground } from '../shared/messaging'
 import { selectProjectFolder, readDirectoryStructure, readFile, writeFile, verifyPermission, countFiles } from './fileSystem'
+import { loadSkills, formatSkillList } from './skills'
 import { saveHandle, saveProjectName } from './handleStore'
 import { fillInput, appendToInput, simulateSend } from './injectUtils'
 import { loadSettings, resolveLang, buildSystemPrompt, t, type Lang } from './settings'
@@ -78,15 +79,20 @@ async function openPanel(): Promise<void> {
     dirHandle = r.handle; projectName = r.name
     await saveHandle(r.handle); saveProjectName(r.name)
     const tree = await readDirectoryStructure(r.handle)
-    afterProjectConnected()
+    await afterProjectConnected()
     return { name: r.name, fileCount: countFiles(tree) }
   }
 
   panel!.onClose = () => { panel?.destroy(); panel=null; trigger?.show() }
 }
 
-function afterProjectConnected(): void {
+async function afterProjectConnected(): Promise<void> {
   if (!dirHandle || !panel) return
+
+  // 加载技能
+  const skills = await loadSkills(dirHandle)
+  _skillList = formatSkillList(skills)
+  if (skills.length > 0) panel.addLog('info', `📚 ${skills.length} skill(s) loaded`)
 
   // 生成提示词
   const prompt = buildPrompt(projectName)
@@ -109,10 +115,11 @@ function countCurrentAIMessages(): number {
 let _currentLang: Lang = 'en-US'
 export function currentLang(): Lang { return _currentLang }
 
+let _skillList = ''
 function buildPrompt(name: string): string {
   const s = loadSettings()
   _currentLang = resolveLang(s)
-  return buildSystemPrompt(name, _currentLang)
+  return buildSystemPrompt(name, _currentLang, _skillList || undefined)
 }
 
 function startAgentLoop(): void {
@@ -247,7 +254,7 @@ registerExtensionHandler({
     await saveHandle(r.handle)
     saveProjectName(r.name)
     const tree = await readDirectoryStructure(r.handle)
-    afterProjectConnected()
+    await afterProjectConnected()
     return { name: r.name, fileCount: countFiles(tree), tree }
   },
 
