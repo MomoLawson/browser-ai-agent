@@ -246,12 +246,14 @@ export class AgentLoop {
       // 所有工具执行完后，统一发送一次
       if (hasOutput) {
         if (this._msgSent.has(msgIdx)) {
-          console.log('[BAI Agent] 本消息已发送过，跳过再次发送')
+          console.log('[BAI] Message', msgIdx, 'already sent, skip re-send')
         } else {
-          console.log('[BAI Agent] 所有工具执行完毕，自动发送')
+          console.log('[BAI] All tools done, auto-sending. msgIdx=', msgIdx, 'tools=', tools.map(t=>t.type))
           this.options.sendMessage()
           if (msgIdx >= 0) this._msgSent.add(msgIdx)
         }
+      } else {
+        console.log('[BAI] No output from tools, skip send. msgIdx=', msgIdx)
       }
       return hasOutput
     } finally {
@@ -691,12 +693,11 @@ export class AgentLoop {
           const { findSkill } = await import('./skills')
           const skill = findSkill(tool.skillName)
           if (!skill) {
-            this.options.injectText(`[Tool: Skill] Skill "${tool.skillName}" not found. Available: use [list] to see .bai/skills/`)
-            this.options.onLog('warn', `Skill not found: ${tool.skillName}`)
-          } else {
-            this.options.injectText(`[Tool: Skill: ${skill.name}]\n${skill.body}`)
-            this.options.onLog('success', `Loaded skill: ${skill.name}`)
+            throw new Error(`Skill "${tool.skillName}" not found`)
           }
+          this.options.injectText(`[Tool: Skill: ${skill.name}]\n${skill.body}`)
+          this.options.onLog('success', `Loaded skill: ${skill.name}`)
+          console.log('[BAI] Skill loaded, will auto-send')
           break
         }
     }
