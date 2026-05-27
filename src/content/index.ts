@@ -84,6 +84,14 @@ async function openPanel(): Promise<void> {
   }
 
   panel!.onClose = () => { panel?.destroy(); panel=null; trigger?.show() }
+  panel!.onSettingsChange = () => {
+    const web = loadSettings().webTools !== false
+    togglePlatformSearch(web)
+    if (dirHandle && projectName) {
+      const prompt = buildPrompt(projectName)
+      panel?.showPrompt(prompt)
+    }
+  }
 }
 
 async function afterProjectConnected(): Promise<void> {
@@ -93,6 +101,9 @@ async function afterProjectConnected(): Promise<void> {
   const skills = await loadSkills(dirHandle)
   _skillList = formatSkillList(skills)
   if (skills.length > 0) panel.addLog('info', `📚 ${skills.length} skill(s) loaded`)
+
+  // 根据 webTools 设置切换平台搜索 UI
+  togglePlatformSearch(loadSettings().webTools !== false)
 
   // 生成提示词
   const prompt = buildPrompt(projectName)
@@ -114,6 +125,45 @@ function countCurrentAIMessages(): number {
 
 let _currentLang: Lang = 'en-US'
 export function currentLang(): Lang { return _currentLang }
+
+// ============================================================
+// Platform search UI toggle
+// ============================================================
+
+let _searchStyleEl: HTMLStyleElement | null = null
+
+const SEARCH_HIDE_CSS = `
+/* ChatGPT search button */
+button[data-testid="search-button"],
+button[aria-label*="Search" i],
+button[aria-label*="search" i],
+/* Claude search */
+button[aria-label*="Search" i],
+/* Gemini search */
+.google-search-button,
+/* DeepSeek */
+button[class*="search"],
+/* Generic search toggles */
+[data-testid*="search"],
+[class*="search-toggle"],
+[class*="SearchButton"],
+[class*="web-search"]
+{ display: none !important; }
+`
+
+function togglePlatformSearch(disable: boolean): void {
+  if (disable) {
+    if (!_searchStyleEl) {
+      _searchStyleEl = document.createElement('style')
+      _searchStyleEl.id = 'bai-hide-search'
+      _searchStyleEl.textContent = SEARCH_HIDE_CSS
+      document.head.appendChild(_searchStyleEl)
+    }
+  } else {
+    _searchStyleEl?.remove()
+    _searchStyleEl = null
+  }
+}
 
 // ============================================================
 // Cross-origin fetch (GM_xmlhttpRequest for userscript, background for extension)

@@ -96,19 +96,23 @@ export class AgentLoop {
     this.lang = options.lang || resolveLang(loadSettings())
   }
 
+  private t(key: string, ...args: string[]): string {
+    return t(this.lang, key, ...args)
+  }
+
   /** 连接项目文件夹 */
   setDirectory(handle: FileSystemDirectoryHandle): void {
     this.dirHandle = handle
-    this.options.onLog('success', `Project connected, agent listening`)
-    this.options.onStatus('Project connected, waiting for AI...')
+    this.options.onLog('success', this.t('project_connected'))
+    this.options.onStatus(this.t('project_connected'))
   }
 
   /** 断开项目 */
   clearDirectory(): void {
     this.dirHandle = null
     this.running = false
-    this.options.onLog('warn', 'Project disconnected')
-    this.options.onStatus('Project disconnected')
+    this.options.onLog('warn', this.t('project_disconnected'))
+    this.options.onStatus(this.t('project_disconnected'))
   }
 
   /** 是否已连接项目 */
@@ -121,7 +125,7 @@ export class AgentLoop {
     if (this.running) return
     this.running = true
     this.lastMessageCount = skipExisting
-    this.options.onLog('info', `Listening (skipped ${skipExisting} existing messages)`)
+    this.options.onLog('info', this.t('listening', String(skipExisting)))
     const pid = (this as any)._pid = Date.now()
     console.log('[BAI Agent] 轮询已启动 pid=', pid)
 
@@ -138,7 +142,7 @@ export class AgentLoop {
       clearInterval(this.pollTimer)
       this.pollTimer = null
     }
-    this.options.onLog('warn', 'Listening stopped')
+    this.options.onLog('warn', this.t('listening_stopped'))
   }
 
   // ============================================================
@@ -171,7 +175,7 @@ export class AgentLoop {
           newMessages = aiMessages.slice(-1)
         }
         this.lastContentHash = currentHash
-        if (newMessages.length > 0) this.options.onLog('info', `New AI message detected`)
+        if (newMessages.length > 0) this.options.onLog('info', this.t('new_message'))
 
         for (let i = 0; i < newMessages.length; i++) {
           const msg = newMessages[i]
@@ -182,7 +186,7 @@ export class AgentLoop {
       } else if (aiMessages.length === 0 && this.lastMessageCount === 0) {
         // 首次轮询没找到消息 — 只报一次
         this.lastMessageCount = -1
-        this.options.onLog('warn', `No AI messages detected, listening...`)
+        this.options.onLog('warn', this.t('no_messages'))
       }
     } catch {
       // 轮询失败静默处理（可能是 DOM 暂时不可用）
@@ -230,14 +234,14 @@ export class AgentLoop {
         this._processedToolKeys.add(key)
         if (isReadOnly) this._sessionToolKeys.add(key)
 
-        this.options.onLog('info', `Detected tool: ${this.describeTool(tool)}`)
+        this.options.onLog('info', this.t('detected_tool', this.describeTool(tool)))
 
         try {
           await this.executeTool(tool)
           hasOutput = true
         } catch (err) {
           const msg = (err as Error).message
-          this.options.onLog('error', `❌ Failed: ${msg}`)
+          this.options.onLog('error', this.t('tool_failed', msg))
           this.options.injectText(`❌ ${msg}`)
           hasOutput = true
         }
@@ -492,40 +496,40 @@ export class AgentLoop {
     // 验证权限
     const ok = await verifyPermission(this.dirHandle)
     if (!ok) {
-      this.options.onLog('error', 'Folder permission expired, re-select project in panel')
+      this.options.onLog('error', this.t('perm_expired'))
       return
     }
 
     switch (tool.type) {
         case 'list_files': {
-          this.options.onLog('info', 'Listing project files...')
+          this.options.onLog('info', this.t('listing_files'))
           const tree = await readDirectoryStructure(this.dirHandle)
           const summary = this.formatFileTree(tree)
           this.options.injectText(`[Tool: List]\n\`\`\`\n${stripMarkdownTicks(summary)}\n\`\`\`\n`)
-          this.options.onLog('success', `Listed ${countFiles(tree)} files`)
+          this.options.onLog('success', this.t('listed_files', String(countFiles(tree))))
           break
         }
 
         case 'read_file': {
           if (!tool.filePath) throw new Error('File path required')
           if (!(await checkFilePermission(tool.filePath, 'read'))) throw new Error(`Permission denied: ${tool.filePath}`)
-          this.options.onLog('info', `Reading: ${tool.filePath}`)
+          this.options.onLog('info', this.t('reading', tool.filePath))
           const content = await readFile(this.dirHandle, tool.filePath)
           this.options.injectText(`[Tool: Read]\n\`${tool.filePath}\`\n\`\`\`\n${content}\n\`\`\`\n`)
-          this.options.onLog('success', `Read ${tool.filePath} (${content.length} chars)`)
+          this.options.onLog('success', this.t('read_done', tool.filePath, String(content.length)))
           break
         }
 
         case 'edit_file': {
           if (!tool.filePath || !tool.content || !tool.newContent) throw new Error('Missing path or content')
           if (!(await checkFilePermission(tool.filePath, 'write'))) throw new Error(`Permission denied: ${tool.filePath}`)
-          this.options.onLog('info', `Editing: ${tool.filePath}`)
+          this.options.onLog('info', this.t('editing', tool.filePath))
           await editFile(this.dirHandle, tool.filePath, tool.content, tool.newContent)
           const hunks = computeDiff(tool.content, tool.newContent)
           const diffText = formatDiffText(hunks)
           this.options.injectText(`[Tool: Edit]\n\`${tool.filePath}\` ✅ Edited`)
           this.options.onToolResult?.({ type: 'edit', filePath: tool.filePath, diff: diffText })
-          this.options.onLog('success', `Edited ${tool.filePath}`)
+          this.options.onLog('success', this.t('edited', tool.filePath))
           break
         }
 
@@ -539,24 +543,24 @@ export class AgentLoop {
               `or [read: ${tool.filePath}] to view first.`
             )
           }
-          this.options.onLog('info', `Creating: ${tool.filePath}`)
+          this.options.onLog('info', this.t('creating', tool.filePath))
           await writeFile(this.dirHandle, tool.filePath, tool.content)
           const diffBody = tool.content.split('\n').map(l => `+${l}`).join('\n')
           this.options.injectText(`[Tool: Write]\n\`${tool.filePath}\` ✅ Created`)
           this.options.onToolResult?.({ type: 'write', filePath: tool.filePath, diff: diffBody })
-          this.options.onLog('success', `Created ${tool.filePath}`)
+          this.options.onLog('success', this.t('created', tool.filePath))
           break
         }
 
         case 'search_code': {
           if (!tool.pattern) throw new Error('Search pattern required')
-          this.options.onLog('info', `Searching files: ${tool.pattern}`)
+          this.options.onLog('info', this.t('searching', tool.pattern))
           const files = await searchFiles(this.dirHandle, tool.pattern)
           const result = files.length > 0
             ? `[Tool: Search]\nPattern: ${tool.pattern}\n${files.map(f=>`  ${f}`).join('\n')}`
             : `[Tool: Search]\nPattern: ${tool.pattern}\n(no matches)`
           this.options.injectText(result)
-          this.options.onLog('success', `Found ${files.length} files`)
+          this.options.onLog('success', this.t('found_files', String(files.length)))
           break
         }
 
@@ -565,7 +569,7 @@ export class AgentLoop {
           this.options.onLog('info', `🔎 grep: ${tool.pattern}`)
           const raw = await grepFiles(this.dirHandle, tool.pattern)
           this.options.injectText(`[Tool: Grep]\nPattern: ${tool.pattern}\n${raw}`)
-          this.options.onLog('success', 'Grep completed')
+          this.options.onLog('success', this.t('grep_done'))
           break
         }
 
@@ -614,7 +618,7 @@ export class AgentLoop {
 
         case 'search_web': {
           if (!tool.pattern) throw new Error('web search query required')
-          this.options.onLog('info', `🌐 Searching web: ${tool.pattern}`)
+          this.options.onLog('info', this.t('web_searching', tool.pattern))
           let results: Array<{title:string;url:string;snippet:string}> = []
           if (this.options.webSearch) {
             results = await this.options.webSearch(tool.pattern)
@@ -635,13 +639,13 @@ export class AgentLoop {
             ? results.map((r,i) => `${i+1}. ${r.title}\n   ${r.url}\n   ${r.snippet}`).join('\n\n')
             : '(no results)'
           this.options.injectText(`[Tool: Web Search] ${tool.pattern}\n${text}`)
-          this.options.onLog('success', `Found ${results.length} results`)
+          this.options.onLog('success', this.t('web_results', String(results.length)))
           break
         }
 
         case 'fetch_web': {
           if (!tool.url) throw new Error('fetch URL required')
-          this.options.onLog('info', `🌐 Fetching: ${tool.url}`)
+          this.options.onLog('info', this.t('fetching', tool.url))
           let text = ''
           if (this.options.webFetch) {
             text = await this.options.webFetch(tool.url)
@@ -661,7 +665,7 @@ export class AgentLoop {
             } finally { clearTimeout(timer) }
           }
           this.options.injectText(`[Tool: Fetch] ${tool.url}\n\`\`\`\n${text}\n\`\`\``)
-          this.options.onLog('success', `Fetched ${text.length} chars`)
+          this.options.onLog('success', this.t('fetched', String(text.length)))
           break
         }
 
@@ -669,7 +673,7 @@ export class AgentLoop {
           if (!tool.filePath) throw new Error('diagnose filepath required')
           if (!this.dirHandle) throw new Error('project not connected')
           if (!(await checkFilePermission(tool.filePath, 'read'))) throw new Error(`Permission denied: ${tool.filePath}`)
-          this.options.onLog('info', `🔬 Diagnosing: ${tool.filePath}`)
+          this.options.onLog('info', this.t('diagnosing', tool.filePath))
           const content = await readFile(this.dirHandle, tool.filePath)
           const { diagnose } = await import('./lsp/core')
           const result = await diagnose(tool.filePath, content)
@@ -680,9 +684,9 @@ export class AgentLoop {
             if (result.diagnostics.length > 0) {
               const errors = result.diagnostics.filter(d => d.severity === 'error').length
               const warnings = result.diagnostics.filter(d => d.severity === 'warning').length
-              this.options.onLog(errors > 0 ? 'error' : 'warn', `${tool.filePath}: ${errors} error(s), ${warnings} warning(s)`)
+              this.options.onLog(errors > 0 ? 'error' : 'warn', this.t('diagnose_result', tool.filePath, String(errors), String(warnings)))
             } else {
-              this.options.onLog('success', `${tool.filePath}: no issues`)
+              this.options.onLog('success', this.t('diagnose_clean', tool.filePath))
             }
           }
           break
@@ -696,7 +700,7 @@ export class AgentLoop {
             throw new Error(`Skill "${tool.skillName}" not found`)
           }
           this.options.injectText(`[Tool: Skill: ${skill.name}]\n${skill.body}`)
-          this.options.onLog('success', `Loaded skill: ${skill.name}`)
+          this.options.onLog('success', this.t('skill_loaded', skill.name))
           console.log('[BAI] Skill loaded, will auto-send')
           break
         }
