@@ -115,11 +115,46 @@ function countCurrentAIMessages(): number {
 let _currentLang: Lang = 'en-US'
 export function currentLang(): Lang { return _currentLang }
 
+// ============================================================
+// Cross-origin fetch (GM_xmlhttpRequest for userscript, background for extension)
+// ============================================================
+
+function gmFetch(url: string): Promise<string> {
+  // Extension mode: use background script (has full network access)
+  if (typeof chrome !== 'undefined' && chrome.runtime?.id) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        { type: 'WEB_FETCH', id: crypto.randomUUID(), payload: { url, maxLength: 50000 } },
+        (resp: any) => {
+          if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message))
+          resp?.success ? resolve(resp.data as string) : reject(new Error(resp?.error || 'fetch failed'))
+        }
+      )
+    })
+  }
+  // Userscript mode: GM_xmlhttpRequest (bypasses CORS)
+  const gmx = (window as any).GM_xmlhttpRequest || (window as any).GM?.xmlHttpRequest
+  if (gmx) {
+    return new Promise((resolve, reject) => {
+      gmx({
+        method: 'GET',
+        url,
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+        onload: (r: any) => r.status >= 200 && r.status < 400 ? resolve(r.responseText) : reject(new Error(`HTTP ${r.status}`)),
+        onerror: (e: any) => reject(new Error(e.error || 'GM_xmlhttpRequest failed')),
+        ontimeout: () => reject(new Error('Request timeout')),
+      })
+    })
+  }
+  // Fallback: direct fetch (will fail on cross-origin)
+  return fetch(url).then(r => r.text())
+}
+
 let _skillList = ''
 function buildPrompt(name: string): string {
   const s = loadSettings()
   _currentLang = resolveLang(s)
-  return buildSystemPrompt(name, _currentLang, _skillList || undefined)
+  return buildSystemPrompt(name, _currentLang, _skillList || undefined, s.webTools !== false)
 }
 
 function startAgentLoop(): void {
@@ -189,43 +224,26 @@ function startAgentLoop(): void {
     },
     onStatus: (text) => panel?.updateStatusBar(text),
     onPollEnd: () => reapplyRenderedCards(),
-    webSearch: async (q: string): Promise<SearchResult[]> => {
-      // Extension: 走 background script（可跨域）
-      if (typeof chrome !== 'undefined' && chrome.runtime?.id) {
-        const resp = await sendMessageToBackground({ type: 'WEB_SEARCH', id: crypto.randomUUID(), payload: { query: q } })
-        return resp.success ? (resp.data as SearchResult[]) : []
-      }
-      // Userscript: 直接 fetch（同源或允许 CORS 的 DuckDuckGo HTML）
-      const ddg = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`
-      const r = await fetch(ddg, { headers: { 'User-Agent': 'Mozilla/5.0' } })
-      const html = await r.text()
-      const results: SearchResult[] = []
-      const blocks = html.split('class="result__body"')
-      for (let i = 1; i < blocks.length && results.length < 8; i++) {
-        const b = blocks[i]
-        const tm = b.match(/<a[^>]*class="result__a"[^>]*>([\s\S]*?)<\/a>/)
-        const um = b.match(/<a[^>]*class="result__url"[^>]*href="([^"]*)"/)
-        const sm = b.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/)
-        if (tm) results.push({ title: tm[1].replace(/<[^>]+>/g,'').trim(), url: um?.[1]??'', snippet: sm?.[1]?.replace(/<[^>]+>/g,'').trim()??'' })
-      }
-      return results
-    },
-    webFetch: async (url: string, maxLen?: number): Promise<string> => {
-      // Extension: 走 background script（可跨域）
-      if (typeof chrome !== 'undefined' && chrome.runtime?.id) {
-        const resp = await sendMessageToBackground({ type: 'WEB_FETCH', id: crypto.randomUUID(), payload: { url, maxLength: maxLen ?? 8000 } })
-        if (resp.success) return resp.data as string
-        throw new Error(resp.error || 'fetch failed')
-      }
-      // Userscript: 直接 fetch（受 CORS 限制）
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 15_000)
-      try {
-        const r = await fetch(url, { signal: controller.signal, headers: { 'Accept': 'text/html' } })
-        const raw = await r.text()
+    ...(loadSettings().webTools !== false ? {
+      webSearch: async (q: string): Promise<SearchResult[]> => {
+        const ddg = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`
+        const html = await gmFetch(ddg)
+        const results: SearchResult[] = []
+        const blocks = html.split('class="result__body"')
+        for (let i = 1; i < blocks.length && results.length < 8; i++) {
+          const b = blocks[i]
+          const tm = b.match(/<a[^>]*class="result__a"[^>]*>([\s\S]*?)<\/a>/)
+          const um = b.match(/<a[^>]*class="result__url"[^>]*href="([^"]*)"/)
+          const sm = b.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/)
+          if (tm) results.push({ title: tm[1].replace(/<[^>]+>/g,'').trim(), url: um?.[1]??'', snippet: sm?.[1]?.replace(/<[^>]+>/g,'').trim()??'' })
+        }
+        return results
+      },
+      webFetch: async (url: string, maxLen?: number): Promise<string> => {
+        const raw = await gmFetch(url)
         return raw.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0, maxLen ?? 8000)
-      } finally { clearTimeout(timer) }
-    },
+      },
+    } : {}),
   })
   agent.setDirectory(dirHandle)
   // 启动前跳过已有消息

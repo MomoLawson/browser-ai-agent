@@ -8,9 +8,10 @@ export type Lang = 'auto' | 'zh-CN' | 'zh-TW' | 'en-US'
 
 export interface Settings {
   language: Lang
+  webTools: boolean
 }
 
-const defaults: Settings = { language: 'auto' }
+const defaults: Settings = { language: 'auto', webTools: true }
 
 export function loadSettings(): Settings {
   try {
@@ -78,13 +79,12 @@ const PROMPT_BODY = [
   '[todo: done N]        Mark todo #N as done',
   '[todo: remove N]      Remove todo #N',
   '[todo: clear]         Clear all todos',
-  '[search_web: query]   Search the web (use for external knowledge, up-to-date info)',
-  '[fetch: https://...]  Fetch and read a web page',
+  '{web_tools}'  ,
   '[diagnose: filepath]  Run LSP diagnostics on a file (type errors, warnings)',
   '[skill: name]        View a skill\'s full content (see installed skills below)',
   '',
   'Rules:',
-  '- [list] [todo] [read] [search] [grep] [search_web] [fetch] [diagnose] [skill] go DIRECTLY in your reply, NEVER in ``` code blocks',
+  '- [list] [todo] [read] [search] [grep] [diagnose] [skill] go DIRECTLY in your reply, NEVER in ``` code blocks',
   '- [edit] [write] put inside a markdown code block (```) with the marker as the language tag',
   '- [write] FAILS if file already exists → use [read]+[edit] instead',
   '- [edit] requires old code to EXACTLY match file content',
@@ -92,6 +92,7 @@ const PROMPT_BODY = [
   '- [write] [/write] and [edit] [/edit] MUST have closing tags or they will be ignored',
   "- Do NOT re-read files you've already read this turn",
   '- {think_dir}',
+  '{skills}',
   '</system-reminder>',
 ]
 
@@ -102,12 +103,16 @@ const THINK_DIR: Record<Lang, string> = {
   'zh-TW': 'Think and respond in Traditional Chinese',
 }
 
-export function buildSystemPrompt(name: string, lang: Lang, skillList?: string): string {
-  const base = PROMPT_BODY.map(line => line
+export function buildSystemPrompt(name: string, lang: Lang, skillList?: string, webTools = true): string {
+  const webLines = webTools
+    ? '[search_web: query]   Search the web (use for external knowledge, up-to-date info)\n[fetch: https://...]  Fetch and read a web page\n'
+    : ''
+  return PROMPT_BODY.map(line => line
     .replace('{name}', name)
     .replace('{think_dir}', THINK_DIR[lang] || THINK_DIR['en-US'])
+    .replace('{skills}', skillList || '')
+    .replace('{web_tools}', webLines)
   ).join('\n')
-  return skillList ? base + '\n' + skillList : base
 }
 
 /** AgentLoop 中的工具执行反馈语言 */
