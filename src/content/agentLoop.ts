@@ -219,7 +219,7 @@ export class AgentLoop {
 
         // 单个工具粒度去重：读取类工具跨消息去重，写入类工具当前消息内去重
         const key = this._toolKey(tool)
-        const isReadOnly = tool.type === 'list_files' || tool.type === 'search_code' || tool.type === 'grep_code'
+        const isReadOnly = tool.type === 'list_files' || tool.type === 'search_code' || tool.type === 'grep_code' || tool.type === 'search_web' || tool.type === 'fetch_web'
         if (isReadOnly ? this._sessionToolKeys.has(key) : this._processedToolKeys.has(key)) {
           console.log('[BAI] 跳过已执行工具:', key)
           continue

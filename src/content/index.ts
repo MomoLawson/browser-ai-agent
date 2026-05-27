@@ -183,15 +183,41 @@ function startAgentLoop(): void {
     onStatus: (text) => panel?.updateStatusBar(text),
     onPollEnd: () => reapplyRenderedCards(),
     webSearch: async (q: string): Promise<SearchResult[]> => {
-      try {
+      // Extension: 走 background script（可跨域）
+      if (typeof chrome !== 'undefined' && chrome.runtime?.id) {
         const resp = await sendMessageToBackground({ type: 'WEB_SEARCH', id: crypto.randomUUID(), payload: { query: q } })
         return resp.success ? (resp.data as SearchResult[]) : []
-      } catch { return [] }
+      }
+      // Userscript: 直接 fetch（同源或允许 CORS 的 DuckDuckGo HTML）
+      const ddg = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`
+      const r = await fetch(ddg, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+      const html = await r.text()
+      const results: SearchResult[] = []
+      const blocks = html.split('class="result__body"')
+      for (let i = 1; i < blocks.length && results.length < 8; i++) {
+        const b = blocks[i]
+        const tm = b.match(/<a[^>]*class="result__a"[^>]*>([\s\S]*?)<\/a>/)
+        const um = b.match(/<a[^>]*class="result__url"[^>]*href="([^"]*)"/)
+        const sm = b.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/)
+        if (tm) results.push({ title: tm[1].replace(/<[^>]+>/g,'').trim(), url: um?.[1]??'', snippet: sm?.[1]?.replace(/<[^>]+>/g,'').trim()??'' })
+      }
+      return results
     },
     webFetch: async (url: string, maxLen?: number): Promise<string> => {
-      const resp = await sendMessageToBackground({ type: 'WEB_FETCH', id: crypto.randomUUID(), payload: { url, maxLength: maxLen ?? 8000 } })
-      if (resp.success) return resp.data as string
-      throw new Error(resp.error || 'fetch failed')
+      // Extension: 走 background script（可跨域）
+      if (typeof chrome !== 'undefined' && chrome.runtime?.id) {
+        const resp = await sendMessageToBackground({ type: 'WEB_FETCH', id: crypto.randomUUID(), payload: { url, maxLength: maxLen ?? 8000 } })
+        if (resp.success) return resp.data as string
+        throw new Error(resp.error || 'fetch failed')
+      }
+      // Userscript: 直接 fetch（受 CORS 限制）
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 15_000)
+      try {
+        const r = await fetch(url, { signal: controller.signal, headers: { 'Accept': 'text/html' } })
+        const raw = await r.text()
+        return raw.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0, maxLen ?? 8000)
+      } finally { clearTimeout(timer) }
     },
   })
   agent.setDirectory(dirHandle)
