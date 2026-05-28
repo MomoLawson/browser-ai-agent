@@ -626,13 +626,18 @@ export class AgentLoop {
             const ddg = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(tool.pattern)}`
             const r = await fetch(ddg, { headers: { 'User-Agent': 'Mozilla/5.0' } })
             const html = await r.text()
-            const blocks = html.split('class="result__body"')
+            const blocks = html.split(/class="[^"]*result__body[^"]*"/)
             for (let i = 1; i < blocks.length && results.length < 8; i++) {
               const b = blocks[i]
               const tm = b.match(/<a[^>]*class="result__a"[^>]*>([\s\S]*?)<\/a>/)
-              const um = b.match(/<a[^>]*class="result__url"[^>]*href="([^"]*)"/)
+              const hm = b.match(/<a[^>]*class="result__a"[^>]*href="([^"]*)"/)
               const sm = b.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/)
-              if (tm) results.push({ title: tm[1].replace(/<[^>]+>/g,'').trim(), url: um?.[1]??'', snippet: sm?.[1]?.replace(/<[^>]+>/g,'').trim()??'' })
+              if (tm) {
+                const rawUrl = hm?.[1] ?? ''
+                const uddg = rawUrl.match(/uddg=([^&]+)/)
+                const url = uddg ? decodeURIComponent(uddg[1]) : rawUrl
+                results.push({ title: tm[1].replace(/<[^>]+>/g,'').trim(), url, snippet: sm?.[1]?.replace(/<[^>]+>/g,'').trim()??'' })
+              }
             }
           }
           const text = results.length > 0

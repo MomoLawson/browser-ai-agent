@@ -92,16 +92,18 @@ async function webSearch(query: string): Promise<SearchResult[]> {
   })
   const html = await resp.text()
   const results: SearchResult[] = []
-  const blocks = html.split('class="result__body"')
+  const blocks = html.split(/class="[^"]*result__body[^"]*"/)
   for (let i = 1; i < blocks.length && results.length < 8; i++) {
     const b = blocks[i]
     const titleMatch = b.match(/<a[^>]*class="result__a"[^>]*>([\s\S]*?)<\/a>/)
-    const urlMatch = b.match(/<a[^>]*class="result__url"[^>]*href="([^"]*)"/)
+    const hrefMatch = b.match(/<a[^>]*class="result__a"[^>]*href="([^"]*)"/)
     const snipMatch = b.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/)
     if (titleMatch) {
+      const rawUrl = hrefMatch?.[1] ?? ''
+      const uddg = rawUrl.match(/uddg=([^&]+)/)
       results.push({
         title: titleMatch[1].replace(/<[^>]+>/g, '').trim(),
-        url: urlMatch?.[1] ?? '',
+        url: uddg ? decodeURIComponent(uddg[1]) : rawUrl,
         snippet: snipMatch?.[1]?.replace(/<[^>]+>/g, '').trim() ?? '',
       })
     }
