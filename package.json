@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "build:extension": "npm run build && mkdir -p dist-extension && cp dist/browser-ai-agent.user.js manifest.json dist-extension/",
+    "build:extension": "tsc --noEmit && vite build --config vite.config.extension.ts",
     "preview": "vite preview"
   },
   "license": "MIT",
