@@ -46,6 +46,19 @@ function createTrigger(): void {
   trigger = new TriggerButton(() => { trigger?.hide(); openPanel() })
 }
 
+// Chrome Extension: 点击图标切换面板
+if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+  chrome.runtime.onMessage.addListener((msg: any) => {
+    if (msg?.type === 'BAI_TOGGLE') {
+      if (panel) {
+        panel.destroy(); panel = null; trigger?.show()
+      } else {
+        trigger?.hide(); openPanel()
+      }
+    }
+  })
+}
+
 async function openPanel(): Promise<void> {
   panel?.destroy()
   panel = new AgentPanel()

@@ -5,11 +5,13 @@
   "description": "Turn any AI chat website into an AI programming agent",
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "scripting"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
+  "action": {},
   "background": {
     "service_worker": "background.js"
   },

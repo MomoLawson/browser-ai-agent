@@ -130,4 +130,22 @@ async function webFetch(url: string, maxLength = 8000): Promise<string> {
 }
 
 // Service Worker 保持活跃
-console.log('[BAI] Background Service Worker 已启动')
+console.log('[BAI] Background Service Worker started')
+
+// 点击扩展图标 → 切换面板
+chrome.action.onClicked.addListener(async (tab) => {
+  if (!tab.id) return
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type: 'BAI_TOGGLE' })
+  } catch {
+    // Content script 未加载，尝试注入
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content.js'],
+      })
+    } catch (e) {
+      console.warn('[BAI] Cannot inject content script:', e)
+    }
+  }
+})
