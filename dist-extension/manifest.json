@@ -2,20 +2,19 @@
   "manifest_version": 3,
   "name": "Browser AI Agent",
   "version": "0.1.0",
-  "description": "在 AI 网站上选择本地项目文件夹并运行 Agent 操作",
+  "description": "Turn any AI chat website into an AI programming agent",
   "permissions": [
-    "storage"
+    "storage",
+    "activeTab",
+    "scripting"
   ],
   "host_permissions": [
-    "https://chatgpt.com/*",
-    "https://chat.openai.com/*",
-    "https://claude.ai/*",
-    "https://gemini.google.com/*",
-    "https://chat.deepseek.com/*",
-    "https://kimi.moonshot.cn/*",
-    "https://www.doubao.com/*",
-    "https://yuanbao.tencent.com/*"
+    "<all_urls>"
   ],
+  "action": {},
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [{
     "matches": [
       "https://chatgpt.com/*",
@@ -27,7 +26,7 @@
       "https://www.doubao.com/*",
       "https://yuanbao.tencent.com/*"
     ],
-    "js": ["browser-ai-agent.user.js"],
+    "js": ["content.js"],
     "run_at": "document_end"
   }]
 }

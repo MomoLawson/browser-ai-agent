@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "build:extension": "tsc --noEmit && vite build --config vite.config.extension.ts",
+    "build:extension": "tsc --noEmit && rm -rf dist-extension && EXT_ENTRY=src/content/index.ts vite build --config vite.config.extension.ts && mv dist-extension/index.js dist-extension/content.js && EXT_ENTRY=src/background/index.ts vite build --config vite.config.extension.ts && mv dist-extension/index.js dist-extension/background.js && cp manifest.json dist-extension/",
     "preview": "vite preview"
   },
   "license": "MIT",
