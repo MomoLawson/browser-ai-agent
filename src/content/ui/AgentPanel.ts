@@ -62,9 +62,9 @@ import { loadSettings, saveSettings, resolveLang, LANG_NAMES, type Lang } from '
 import { fa, renderFA } from './icons'
 type UILang='en-US'|'zh-CN'|'zh-TW'
 const T:Record<UILang,Record<string,string>>={
-  'en-US':{wa:'Waiting for project',se:'Select project',ns:'Not selected',sp:'Project context',sa:'Send to AI',ur:'What do you want to do?',cp:'Copy',lg:'Logs',cl:'Clear',cd:'Cleared',ch:'Connect a project to see logs',st:'Settings',ll:'Language',wt:'Web Tools (search & fetch)',cs:'Close',fd:'Sent to AI',co:'Copied',pj:'Project',fl:'Files',ls:'Listening'},
-  'zh-CN':{wa:'等待连接项目',se:'选择项目',ns:'未选择',sp:'项目上下文',sa:'发送给 AI',ur:'输入你的需求...',cp:'复制',lg:'操作日志',cl:'清除',cd:'已清除',ch:'连接项目后这里显示操作记录',st:'设置',ll:'界面语言',cs:'关闭',fd:'已发送',co:'已复制',pj:'项目',fl:'文件',ls:'监听中'},
-  'zh-TW':{wa:'等待連接專案',se:'選擇專案',ns:'未選擇',sp:'專案上下文',sa:'發送給 AI',ur:'輸入你的需求...',cp:'複製',lg:'操作日誌',cl:'清除',cd:'已清除',ch:'連接專案後這裡顯示操作記錄',st:'設定',ll:'介面語言',cs:'關閉',fd:'已發送',co:'已複製',pj:'專案',fl:'檔案',ls:'監聽中'},
+  'en-US':{wa:'Waiting for project',se:'Select project',ns:'Not selected',sp:'Project context',sa:'Send to AI',ur:'What do you want to do?',cp:'Copy',lg:'Logs',cl:'Clear',cd:'Cleared',ch:'Connect a project to see logs',st:'Settings',ll:'Language',wt:'Web Tools (search & fetch)',sl:'Enable Shell',slh:'Shell server not running, shell disabled',cs:'Close',fd:'Sent to AI',co:'Copied',pj:'Project',fl:'Files',ls:'Listening'},
+  'zh-CN':{wa:'等待连接项目',se:'选择项目',ns:'未选择',sp:'项目上下文',sa:'发送给 AI',ur:'输入你的需求...',cp:'复制',lg:'操作日志',cl:'清除',cd:'已清除',ch:'连接项目后这里显示操作记录',st:'设置',ll:'界面语言',wt:'Web Tools (search & fetch)',sl:'启用 Shell',slh:'Shell 服务器未启动，已禁用 Shell',cs:'关闭',fd:'已发送',co:'已复制',pj:'项目',fl:'文件',ls:'监听中'},
+  'zh-TW':{wa:'等待連接專案',se:'選擇專案',ns:'未選擇',sp:'專案上下文',sa:'發送給 AI',ur:'輸入你的需求...',cp:'複製',lg:'操作日誌',cl:'清除',cd:'已清除',ch:'連接專案後這裡顯示操作記錄',st:'設定',ll:'介面語言',wt:'Web Tools (search & fetch)',sl:'啟用 Shell',slh:'Shell 伺服器未啟動，已停用 Shell',cs:'關閉',fd:'已發送',co:'已複製',pj:'專案',fl:'檔案',ls:'監聽中'},
 }
 type K=keyof typeof T['en-US']
 
@@ -91,7 +91,7 @@ export class AgentPanel{
   <div class="pblock hidden" id="pb"><div class="phdr"><i class="${fa('messageSquare')}"></i>${this.t('sp')}</div><div class="ptext" id="pt"></div><textarea class="uarea" id="ui" placeholder="${this.t('ur')}"></textarea><div class="pacts"><button class="btn btn-g" id="ci"><i class="${fa('paperPlane')}"></i>${this.t('sa')}</button><button class="btn btn-o" id="cc"><i class="${fa('copy')}"></i>${this.t('cp')}</button></div></div>
   <div class="log"><div class="log-h"><span class="log-t"><i class="${fa('list')}"></i>${this.t('lg')}</span><button class="btn btn-o" id="clr" style="font-size:11px;padding:3px 8px"><i class="${fa('trash2')}"></i>${this.t('cl')}</button></div><div class="log-b" id="lb"><div class="empty">${this.t('ch')}</div></div></div>
 </div></div>
-<div class="sp hidden" id="sp"><h3><i class="${fa('sliders')}"></i>${this.t('st')}</h3><label>${this.t('ll')}</label><select id="langSel"></select><label style="margin-top:10px"><input type="checkbox" id="webTog" style="margin-right:6px">${this.t('wt')}</label><button class="btn btn-p sp-close" id="spCl"><i class="${fa('check')}"></i>${this.t('cs')}</button></div>`
+<div class="sp hidden" id="sp"><h3><i class="${fa('sliders')}"></i>${this.t('st')}</h3><label>${this.t('ll')}</label><select id="langSel"></select><label style="margin-top:10px"><input type="checkbox" id="webTog" style="margin-right:6px">${this.t('wt')}</label><label style="margin-top:10px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="shellTog" style="margin-right:6px">${this.t('sl')}<span id="shellHint" style="font-size:11px;color:#ef4444;display:none;margin-left:auto"></span></label><button class="btn btn-p sp-close" id="spCl"><i class="${fa('check')}"></i>${this.t('cs')}</button></div>`
     setTimeout(() => renderFA(this.shadow), 50)
     this.elPane=this.$('pn');this.elDot=this.$('dot');this.elSelect=this.$('sel')as HTMLButtonElement
     this.elInfo=this.$('info');this.elLog=this.$('lb');this.elPrompt=this.$('pb');this.elPT=this.$('pt')
@@ -101,6 +101,8 @@ export class AgentPanel{
     this.elLang.innerHTML=Object.entries(LANG_NAMES).map(([k,v])=>`<option value="${k}"${k===c.language?' selected':''}>${v}</option>`).join('')
     const webTog=this.$('webTog')as HTMLInputElement
     webTog.checked=c.webTools!==false
+    const shellTog=this.$('shellTog')as HTMLInputElement
+    shellTog.checked=c.shell!==false
   }
 
   private rui(){
@@ -130,6 +132,8 @@ export class AgentPanel{
     this.elLang.addEventListener('change',()=>{const s=loadSettings();s.language=this.elLang.value as Lang;saveSettings(s);this.lang=resolveLang(s)as UILang;this.rui()})
     const webTog=this.$('webTog')as HTMLInputElement
     webTog.addEventListener('change',()=>{const s=loadSettings();s.webTools=webTog.checked;saveSettings(s)})
+    const shellTog=this.$('shellTog')as HTMLInputElement
+    shellTog.addEventListener('change',()=>{const s=loadSettings();s.shell=shellTog.checked;saveSettings(s)})
     this.$('spCl').addEventListener('click',()=>{this.elStgPnl.classList.add('hidden');this.onSettingsChange?.()})
   }
 
@@ -157,6 +161,22 @@ export class AgentPanel{
   }
   clearLogs():void{this.elLog.innerHTML=`<div class="empty">${this.t('cd')}</div>`}
   updateStatusBar(t:string):void{this.elST.textContent=t}
+  updateShellStatus(connected:boolean):void{
+    const tog=this.$('shellTog')as HTMLInputElement
+    const hint=this.$('shellHint')as HTMLSpanElement
+    if(connected){
+      tog.disabled=false
+      tog.parentElement!.style.opacity='1'
+      hint.style.display='none'
+    }else{
+      tog.checked=false
+      tog.disabled=true
+      tog.parentElement!.style.opacity='0.5'
+      hint.textContent=this.t('slh')
+      hint.style.display='inline'
+      const s=loadSettings();s.shell=false;saveSettings(s)
+    }
+  }
   destroy():void{this.host.remove()}
 }
 function esc(s:string):string{const d=document.createElement('div');d.textContent=s;return d.innerHTML}

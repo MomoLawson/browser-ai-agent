@@ -1,0 +1,292 @@
+/* ── Base ────────────────────────────────────────────────── */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-size: 13px;
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Title bar ──────────────────────────────────────────── */
+
+.titlebar {
+  -webkit-app-region: drag;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #16162a;
+  border-bottom: 1px solid #2a2a4a;
+  flex-shrink: 0;
+}
+
+.titlebar-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8888aa;
+  letter-spacing: 0.5px;
+}
+
+/* ── Server info ────────────────────────────────────────── */
+
+.server-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #1e1e38;
+  border-bottom: 1px solid #2a2a4a;
+  flex-shrink: 0;
+}
+
+.server-url {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  color: #7c7cff;
+}
+
+.server-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #888;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-green {
+  background: #4ade80;
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.4);
+}
+
+.dot-gray {
+  background: #555;
+}
+
+/* ── Section headers ────────────────────────────────────── */
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: #1a1a2e;
+  flex-shrink: 0;
+}
+
+/* ── Services list ──────────────────────────────────────── */
+
+/* ── Settings panel ─────────────────────────────────────── */
+
+.settings-panel {
+  flex-shrink: 0;
+  padding: 0 12px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  background: #1e1e38;
+  border-radius: 8px;
+  border: 1px solid #2a2a4a;
+}
+
+.setting-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e0e0e0;
+}
+
+.setting-select {
+  -webkit-app-region: no-drag;
+  background: #141428;
+  color: #e0e0e0;
+  border: 1px solid #3a3a5a;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+  min-width: 120px;
+}
+
+.setting-select:focus {
+  border-color: #7c7cff;
+}
+
+.setting-select option {
+  background: #1a1a2e;
+  color: #e0e0e0;
+}
+
+.services-list {
+  flex-shrink: 0;
+  padding: 0 12px;
+}
+
+.service-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  background: #1e1e38;
+  border-radius: 8px;
+  border: 1px solid #2a2a4a;
+}
+
+.service-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.service-icon {
+  font-size: 18px;
+  width: 28px;
+  text-align: center;
+}
+
+.service-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: #e0e0e0;
+}
+
+.service-info {
+  font-size: 11px;
+  color: #666;
+  margin-top: 2px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+/* ── Toggle switch ──────────────────────────────────────── */
+
+.toggle {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  -webkit-app-region: no-drag;
+}
+
+.toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #333;
+  border-radius: 22px;
+  transition: background 0.2s;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  left: 3px;
+  bottom: 3px;
+  background: #888;
+  border-radius: 50%;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.toggle input:checked + .toggle-slider {
+  background: #2d5a3d;
+}
+
+.toggle input:checked + .toggle-slider::before {
+  transform: translateX(18px);
+  background: #4ade80;
+}
+
+/* ── Logs ───────────────────────────────────────────────── */
+
+.log-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #888;
+  background: #141428;
+  margin: 0 12px 12px;
+  border-radius: 8px;
+  border: 1px solid #2a2a4a;
+}
+
+.log-empty {
+  color: #444;
+  text-align: center;
+  padding: 20px;
+}
+
+.log-line {
+  padding: 1px 0;
+  word-break: break-all;
+}
+
+.log-line.shell {
+  color: #7c7cff;
+}
+
+.btn-clear {
+  -webkit-app-region: no-drag;
+  background: none;
+  border: 1px solid #333;
+  color: #666;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-clear:hover {
+  background: #2a2a4a;
+  color: #999;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 3px;
+}

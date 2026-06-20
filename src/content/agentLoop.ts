@@ -32,11 +32,12 @@ import { checkFilePermission } from './permissions'
 // ============================================================
 
 export interface ToolCall {
-  type: 'read_file' | 'write_file' | 'edit_file' | 'list_files' | 'search_code' | 'grep_code' | 'todo' | 'search_web' | 'fetch_web' | 'diagnose_file' | 'skill'
+  type: 'read_file' | 'write_file' | 'edit_file' | 'list_files' | 'search_code' | 'grep_code' | 'todo' | 'search_web' | 'fetch_web' | 'diagnose_file' | 'skill' | 'shell_command'
   filePath?: string
   content?: string
   newContent?: string
   pattern?: string
+  command?: string
   confidence: number // 0-1
   // todo 相关
   todoAction?: 'list' | 'add' | 'done' | 'remove' | 'clear'
@@ -70,7 +71,8 @@ export interface AgentLoopOptions {
   webSearch?: (query: string) => Promise<Array<{title:string;url:string;snippet:string}>>
   /** 网页内容获取 */
   webFetch?: (url: string, maxLength?: number) => Promise<string>
-}
+  /** 执行 shell 命令 */
+  shellCommand?: (command: string, timeout?: number) => Promise<{exitCode:number;stdout:string;stderr:string;duration:number}>}
 
 // ============================================================
 // AgentLoop 类
@@ -483,6 +485,13 @@ export class AgentLoop {
       if (name.length >= 2) tools.push({ type: 'skill', skillName: name, confidence: 0.95 })
     }
 
+    // [shell: command] 或 [exec: command] — 执行 shell 命令
+    const shellMatches = content.matchAll(/\[(?:shell|exec)[：:]\s*([^\]]+)\]/g)
+    for (const m of shellMatches) {
+      const cmd = m[1].trim()
+      if (cmd.length >= 2) tools.push({ type: 'shell_command', command: cmd, confidence: 0.95 })
+    }
+
     return tools
   }
 
@@ -709,6 +718,31 @@ export class AgentLoop {
           console.log('[BAI] Skill loaded, will auto-send')
           break
         }
+
+        case 'shell_command': {
+          if (!tool.command) throw new Error('command required')
+          if (!this.options.shellCommand) {
+            throw new Error('Shell server not connected. Start the BAI Desktop App.')
+          }
+          this.options.onLog('info', `⚡ Running: ${tool.command}`)
+          const result = await this.options.shellCommand(tool.command)
+          const dur = (result.duration / 1000).toFixed(1)
+          const MAX = 8000
+          let output = `[Tool: Shell] ${tool.command}\n⏱ ${dur}s | Exit code: ${result.exitCode}\n\n`
+          if (result.stdout) {
+            const s = result.stdout.length > MAX ? result.stdout.slice(0, MAX) + '\n...(truncated)' : result.stdout
+            output += `stdout:\n${s}\n`
+          }
+          if (result.stderr) {
+            const s = result.stderr.length > MAX ? result.stderr.slice(0, MAX) + '\n...(truncated)' : result.stderr
+            output += `\nstderr:\n${s}\n`
+          }
+          if (!result.stdout && !result.stderr) output += '(no output)\n'
+          this.options.injectText(output)
+          const ok = result.exitCode === 0
+          this.options.onLog(ok ? 'success' : 'warn', `${tool.command} → exit ${result.exitCode} (${dur}s)`)
+          break
+        }
     }
   }
 
@@ -748,6 +782,7 @@ export class AgentLoop {
       case 'fetch_web': return `Fetch: ${tool.url}`
       case 'diagnose_file': return `Diagnose: ${tool.filePath}`
       case 'skill': return `Skill: ${tool.skillName}`
+      case 'shell_command': return `Shell: ${tool.command}`
     }
   }
 
@@ -766,6 +801,8 @@ export class AgentLoop {
       k += ':' + t.filePath
     } else if (t.pattern) {
       k += ':' + t.pattern
+    } else if (t.command) {
+      k += ':' + t.command
     }
     return k
   }

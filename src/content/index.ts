@@ -16,6 +16,7 @@ import { AgentLoop } from './agentLoop'
 import type { FileEntry, SearchResult } from '../shared/types'
 import { sendMessageToBackground } from '../shared/messaging'
 import { selectProjectFolder, readDirectoryStructure, readFile, writeFile, verifyPermission, countFiles } from './fileSystem'
+import { execShellCommand, checkShellServer } from './shellClient'
 import { loadSkills, formatSkillList } from './skills'
 import { saveHandle, saveProjectName } from './handleStore'
 import { fillInput, appendToInput, simulateSend } from './injectUtils'
@@ -109,6 +110,17 @@ async function openPanel(): Promise<void> {
 
 async function afterProjectConnected(): Promise<void> {
   if (!dirHandle || !panel) return
+
+  // 检查 Shell Server
+  checkShellServer().then(h => {
+    if (h) {
+      panel!.addLog('success', `Shell server: connected (${h.cwd})`)
+      panel!.updateShellStatus(true)
+    } else {
+      panel!.addLog('warn', 'Shell server: not running — start the BAI Desktop App')
+      panel!.updateShellStatus(false)
+    }
+  }).catch(() => { panel!.updateShellStatus(false) })
 
   // 加载技能
   const skills = await loadSkills(dirHandle)
@@ -217,7 +229,7 @@ let _skillList = ''
 function buildPrompt(name: string): string {
   const s = loadSettings()
   _currentLang = resolveLang(s)
-  return buildSystemPrompt(name, _currentLang, _skillList || undefined, s.webTools !== false)
+  return buildSystemPrompt(name, _currentLang, _skillList || undefined, s.webTools !== false, s.shell !== false)
 }
 
 function startAgentLoop(): void {
@@ -225,6 +237,7 @@ function startAgentLoop(): void {
   agent?.stop()
   agent = new AgentLoop({
     lang: _currentLang,
+    shellCommand: async (cmd: string, timeout?: number) => execShellCommand(cmd, { timeout }),
     getConversation: async () => {
       const ms: Array<{role:string;content:string}> = []
       document.querySelectorAll('[data-message-author-role]').forEach(el => {

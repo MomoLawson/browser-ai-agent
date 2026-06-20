@@ -1,0 +1,20 @@
+{
+  "name": "bai-desktop",
+  "version": "0.1.0",
+  "description": "Browser AI Agent Desktop — local services for BAI (shell, diagnostics, etc.)",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "start": "tsc && cp src/renderer/index.html dist/renderer/ && cp src/renderer/style.css dist/renderer/ && electron .",
+    "build": "tsc && cp src/renderer/index.html dist/renderer/ && cp src/renderer/style.css dist/renderer/",
+    "make": "tsc && cp src/renderer/index.html dist/renderer/ && cp src/renderer/style.css dist/renderer/ && electron-forge make",
+    "package": "tsc && cp src/renderer/index.html dist/renderer/ && cp src/renderer/style.css dist/renderer/ && electron-forge package"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "^7.6.0",
+    "@electron-forge/maker-dmg": "^7.6.0",
+    "@electron-forge/maker-zip": "^7.6.0",
+    "@types/node": "^22.0.0",
+    "electron": "^33.0.0",
+    "typescript": "^5.7.0"
+  }
+}
