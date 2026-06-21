@@ -1,4 +1,6 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, app } from 'electron'
+import { exec } from 'node:child_process'
+import path from 'node:path'
 import { registry } from './services/registry'
 import { loadSettings, saveSettings, type AppSettings } from './settings'
 
@@ -39,6 +41,33 @@ export function registerIPC(mainWindow: BrowserWindow): void {
 
   ipcMain.handle('bai:save-settings', (_event, patch: Partial<AppSettings>) => {
     return saveSettings(patch)
+  })
+
+  // ── Install Extension ────────────────────────────────────
+
+  ipcMain.handle('bai:install-extension', (_event, browser: string) => {
+    // dist-extension 相对于 electron-app/ 的上级目录
+    const extPath = path.resolve(app.getAppPath(), '..', 'dist-extension')
+    const extUrl = `chrome://extensions/`
+
+    if (browser === 'edge') {
+      // macOS: open Edge with --load-extension
+      exec(`open -a "Microsoft Edge" --args --load-extension="${extPath}" "${extUrl}"`, (err) => {
+        if (err) {
+          // fallback: 只打开扩展页面
+          exec(`open -a "Microsoft Edge" "${extUrl}"`)
+        }
+      })
+    } else {
+      // macOS: open Chrome with --load-extension
+      exec(`open -a "Google Chrome" --args --load-extension="${extPath}" "${extUrl}"`, (err) => {
+        if (err) {
+          exec(`open -a "Google Chrome" "${extUrl}"`)
+        }
+      })
+    }
+
+    return { success: true, extPath }
   })
 }
 

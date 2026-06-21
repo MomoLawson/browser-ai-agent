@@ -33,6 +33,10 @@ contextBridge.exposeInMainWorld('bai', {
   saveSettings: (patch: { browser?: string; language?: string }): Promise<{ browser: string; language: string }> =>
     ipcRenderer.invoke('bai:save-settings', patch),
 
+  /** 安装扩展：打开选中的浏览器并加载扩展 */
+  installExtension: (browser: string): Promise<{ success: boolean; extPath: string }> =>
+    ipcRenderer.invoke('bai:install-extension', browser),
+
   /** 监听日志 */
   onLog: (callback: (message: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, message: string) => callback(message)

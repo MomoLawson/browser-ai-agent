@@ -28,6 +28,7 @@ body {
   background: #16162a;
   border-bottom: 1px solid #2a2a4a;
   flex-shrink: 0;
+  position: relative;
 }
 
 .titlebar-text {
@@ -35,6 +36,32 @@ body {
   font-weight: 600;
   color: #8888aa;
   letter-spacing: 0.5px;
+}
+
+.btn-settings {
+  -webkit-app-region: no-drag;
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.btn-settings:hover {
+  background: #2a2a4a;
+  color: #aaa;
+}
+
+.btn-settings.active {
+  color: #7c7cff;
+  background: #2a2a4a;
 }
 
 /* ── Server info ────────────────────────────────────────── */
@@ -95,6 +122,15 @@ body {
   flex-shrink: 0;
 }
 
+/* ── Views ──────────────────────────────────────────────── */
+
+.view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 /* ── Services list ──────────────────────────────────────── */
 
 /* ── Settings panel ─────────────────────────────────────── */
@@ -141,6 +177,54 @@ body {
 .setting-select option {
   background: #1a1a2e;
   color: #e0e0e0;
+}
+
+.btn-install {
+  -webkit-app-region: no-drag;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #2d5a3d, #1e3a2a);
+  color: #4ade80;
+  border: 1px solid #3a6a4a;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.2s;
+}
+
+.btn-install:hover {
+  background: linear-gradient(135deg, #3a6a4a, #2d5a3d);
+}
+
+.btn-install:active {
+  transform: scale(0.98);
+}
+
+.btn-install-icon {
+  font-size: 16px;
+}
+
+.install-hint {
+  margin-top: 6px;
+  padding: 0 4px;
+  font-size: 11px;
+  color: #555;
+  line-height: 1.4;
+  min-height: 16px;
+}
+
+.install-hint.success {
+  color: #4ade80;
+}
+
+.install-hint.error {
+  color: #f87171;
 }
 
 .services-list {

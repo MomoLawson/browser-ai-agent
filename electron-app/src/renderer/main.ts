@@ -20,6 +20,10 @@ const I18N: Record<string, Record<string, string>> = {
     stopped: '已停止',
     no_services: '暂无服务',
     waiting: '等待活动...',
+    install_ext: '安装扩展',
+    install_hint: '将自动打开浏览器并加载扩展',
+    install_ok: '浏览器已打开，请在扩展页面确认加载',
+    install_fail: '打开浏览器失败',
   },
   'en-US': {
     settings: 'Settings',
@@ -32,6 +36,10 @@ const I18N: Record<string, Record<string, string>> = {
     stopped: 'Stopped',
     no_services: 'No services registered',
     waiting: 'Waiting for activity...',
+    install_ext: 'Install Extension',
+    install_hint: 'Opens browser and loads the extension automatically',
+    install_ok: 'Browser opened — confirm the extension in the extensions page',
+    install_fail: 'Failed to open browser',
   },
 }
 
@@ -71,6 +79,7 @@ declare const bai: {
   getServerInfo(): Promise<{ url: string; running: boolean }>
   getSettings(): Promise<{ browser: string; language: string }>
   saveSettings(patch: { browser?: string; language?: string }): Promise<{ browser: string; language: string }>
+  installExtension(browser: string): Promise<{ success: boolean; extPath: string }>
   onLog(callback: (message: string) => void): () => void
 }
 
@@ -91,6 +100,42 @@ const serverUrl = document.getElementById('server-url')!
 const serverStatus = document.getElementById('server-status')!
 const settingBrowser = document.getElementById('setting-browser') as HTMLSelectElement
 const settingLanguage = document.getElementById('setting-language') as HTMLSelectElement
+const btnSettings = document.getElementById('btn-settings')!
+const btnInstall = document.getElementById('btn-install')!
+const installHint = document.getElementById('install-hint')!
+const viewMain = document.getElementById('view-main')!
+const viewSettings = document.getElementById('view-settings')!
+
+// ── View toggle ──────────────────────────────────────────
+
+let showingSettings = false
+
+function toggleSettings(): void {
+  showingSettings = !showingSettings
+  viewMain.style.display = showingSettings ? 'none' : 'flex'
+  viewSettings.style.display = showingSettings ? 'flex' : 'none'
+  btnSettings.classList.toggle('active', showingSettings)
+}
+
+btnSettings.addEventListener('click', toggleSettings)
+
+// ── Install extension ────────────────────────────────────
+
+btnInstall.addEventListener('click', async () => {
+  const browser = settingBrowser.value
+  installHint.textContent = ''
+  installHint.className = 'install-hint'
+  try {
+    const result = await bai.installExtension(browser)
+    if (result.success) {
+      installHint.textContent = t('install_ok')
+      installHint.className = 'install-hint success'
+    }
+  } catch {
+    installHint.textContent = t('install_fail')
+    installHint.className = 'install-hint error'
+  }
+})
 
 // ── Render services ──────────────────────────────────────
 
@@ -194,8 +239,11 @@ async function init(): Promise<void> {
     currentLang = settingLanguage.value as Lang
     await bai.saveSettings({ language: settingLanguage.value })
     applyI18n()
-    // 重新渲染服务列表以更新语言
     renderServices()
+    // 更新安装提示文字（如果未显示结果）
+    if (!installHint.classList.contains('success') && !installHint.classList.contains('error')) {
+      installHint.textContent = t('install_hint')
+    }
   })
 
   // Services
