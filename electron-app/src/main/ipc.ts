@@ -1,8 +1,15 @@
 import { ipcMain, BrowserWindow, app } from 'electron'
-import { exec } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import path from 'node:path'
+import fs from 'node:fs'
 import { registry } from './services/registry'
 import { loadSettings, saveSettings, type AppSettings } from './settings'
+
+// macOS 浏览器二进制路径
+const BROWSER_PATHS: Record<string, string> = {
+  chrome: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  edge: '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+}
 
 /**
  * 注册所有 IPC 通道
@@ -46,26 +53,25 @@ export function registerIPC(mainWindow: BrowserWindow): void {
   // ── Install Extension ────────────────────────────────────
 
   ipcMain.handle('bai:install-extension', (_event, browser: string) => {
-    // dist-extension 相对于 electron-app/ 的上级目录
     const extPath = path.resolve(app.getAppPath(), '..', 'dist-extension')
-    const extUrl = `chrome://extensions/`
+    const binPath = BROWSER_PATHS[browser] || BROWSER_PATHS.chrome
 
-    if (browser === 'edge') {
-      // macOS: open Edge with --load-extension
-      exec(`open -a "Microsoft Edge" --args --load-extension="${extPath}" "${extUrl}"`, (err) => {
-        if (err) {
-          // fallback: 只打开扩展页面
-          exec(`open -a "Microsoft Edge" "${extUrl}"`)
-        }
-      })
-    } else {
-      // macOS: open Chrome with --load-extension
-      exec(`open -a "Google Chrome" --args --load-extension="${extPath}" "${extUrl}"`, (err) => {
-        if (err) {
-          exec(`open -a "Google Chrome" "${extUrl}"`)
-        }
-      })
+    // 检查浏览器是否存在
+    if (!fs.existsSync(binPath)) {
+      return { success: false, error: `Browser not found: ${binPath}` }
     }
+
+    // 直接启动浏览器并加载扩展（无需用户手动操作）
+    const child = spawn(binPath, [
+      `--load-extension=${extPath}`,
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--silent-debugger-extension-api',
+    ], {
+      detached: true,
+      stdio: 'ignore',
+    })
+    child.unref()
 
     return { success: true, extPath }
   })
