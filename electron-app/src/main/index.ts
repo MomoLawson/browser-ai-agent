@@ -1,9 +1,9 @@
 import { app, BrowserWindow } from 'electron'
 import path from 'node:path'
-import { startServer, stopServer } from './server'
+import { startServer, stopServer, setNotifyRenderer } from './server'
 import { registry } from './services/registry'
 import { ShellService } from './services/shell'
-import { registerIPC, setMainWindow, sendLog } from './ipc'
+import { registerIPC, setMainWindow, sendLog, sendEvent } from './ipc'
 
 // 禁用 GPU 硬件加速，避免 EGL Driver 报错
 app.disableHardwareAcceleration()
@@ -42,6 +42,8 @@ async function bootstrap(): Promise<void> {
   // 2. 启动 HTTP server
   try {
     await startServer()
+    // 连接事件转发到渲染进程
+    setNotifyRenderer((event, data) => sendEvent(event, data))
     console.log('[Main] HTTP server started')
   } catch (err: any) {
     console.error('[Main] HTTP server failed:', err.message)

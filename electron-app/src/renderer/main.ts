@@ -20,10 +20,16 @@ const I18N: Record<string, Record<string, string>> = {
     stopped: '已停止',
     no_services: '暂无服务',
     waiting: '等待活动...',
+    master_switch: '总开关',
+    connected: '已连接',
+    disconnected: '未连接',
     install_ext: '安装扩展',
+    install_script: '安装脚本',
     install_hint: '将自动打开浏览器并加载扩展',
     install_ok: '浏览器已打开，请在扩展页面确认加载',
     install_fail: '打开浏览器失败',
+    script_hint: '用户脚本安装功能开发中',
+    quit: '退出 BAI Desktop',
   },
   'en-US': {
     settings: 'Settings',
@@ -36,10 +42,16 @@ const I18N: Record<string, Record<string, string>> = {
     stopped: 'Stopped',
     no_services: 'No services registered',
     waiting: 'Waiting for activity...',
+    master_switch: 'Master Switch',
+    connected: 'Connected',
+    disconnected: 'Disconnected',
     install_ext: 'Install Extension',
+    install_script: 'Install Script',
     install_hint: 'Opens browser and loads the extension automatically',
     install_ok: 'Browser opened — confirm the extension in the extensions page',
     install_fail: 'Failed to open browser',
+    script_hint: 'Userscript install coming soon',
+    quit: 'Quit BAI Desktop',
   },
 }
 
@@ -76,10 +88,14 @@ interface ServiceStatus {
 declare const bai: {
   getServices(): Promise<ServiceStatus[]>
   toggleService(name: string): Promise<{ success: boolean; enabled?: boolean; error?: string }>
-  getServerInfo(): Promise<{ url: string; running: boolean }>
-  getSettings(): Promise<{ browser: string; language: string }>
-  saveSettings(patch: { browser?: string; language?: string }): Promise<{ browser: string; language: string }>
+  getServerInfo(): Promise<{ url: string; running: boolean; connected: boolean }>
+  getSettings(): Promise<{ browser: string; language: string; masterSwitch: boolean }>
+  saveSettings(patch: { browser?: string; language?: string; masterSwitch?: boolean }): Promise<any>
+  toggleMaster(): Promise<{ masterSwitch: boolean }>
+  getState(): Promise<{ masterSwitch: boolean; connected: boolean }>
   installExtension(browser: string): Promise<{ success: boolean; extPath: string }>
+  quit(): Promise<void>
+  onExtConnected(callback: (connected: boolean) => void): () => void
   onLog(callback: (message: string) => void): () => void
 }
 
@@ -97,12 +113,17 @@ const servicesList = document.getElementById('services-list')!
 const logArea = document.getElementById('log-area')!
 const btnClear = document.getElementById('btn-clear')!
 const serverUrl = document.getElementById('server-url')!
-const serverStatus = document.getElementById('server-status')!
+const connDot = document.getElementById('conn-dot')!
+const connText = document.getElementById('conn-text')!
 const settingBrowser = document.getElementById('setting-browser') as HTMLSelectElement
 const settingLanguage = document.getElementById('setting-language') as HTMLSelectElement
 const btnSettings = document.getElementById('btn-settings')!
 const btnInstall = document.getElementById('btn-install')!
+const btnInstallScript = document.getElementById('btn-install-userscript')!
 const installHint = document.getElementById('install-hint')!
+const masterToggle = document.getElementById('master-toggle') as HTMLInputElement
+const masterBar = document.querySelector('.master-bar')!
+const btnQuit = document.getElementById('btn-quit')!
 const viewMain = document.getElementById('view-main')!
 const viewSettings = document.getElementById('view-settings')!
 
@@ -135,6 +156,51 @@ btnInstall.addEventListener('click', async () => {
     installHint.textContent = t('install_fail')
     installHint.className = 'install-hint error'
   }
+})
+
+// ── Install userscript (placeholder) ─────────────────────
+
+btnInstallScript.addEventListener('click', () => {
+  installHint.textContent = t('script_hint')
+  installHint.className = 'install-hint'
+})
+
+// ── Master switch ────────────────────────────────────────
+
+masterToggle.addEventListener('change', async () => {
+  const result = await bai.toggleMaster()
+  masterBar.classList.toggle('off', !result.masterSwitch)
+})
+
+// ── Connection status ────────────────────────────────────
+
+function updateConnection(connected: boolean): void {
+  connDot.className = connected ? 'dot dot-green' : 'dot dot-gray'
+  connText.textContent = t(connected ? 'connected' : 'disconnected')
+}
+
+// 初始状态
+bai.getState().then(s => {
+  masterToggle.checked = s.masterSwitch
+  masterBar.classList.toggle('off', !s.masterSwitch)
+  updateConnection(s.connected)
+})
+
+// 监听扩展连接事件
+bai.onExtConnected((connected) => {
+  updateConnection(connected)
+})
+
+// 定期刷新连接状态
+setInterval(async () => {
+  const s = await bai.getState()
+  updateConnection(s.connected)
+}, 5000)
+
+// ── Quit ─────────────────────────────────────────────────
+
+btnQuit.addEventListener('click', async () => {
+  await bai.quit()
 })
 
 // ── Render services ──────────────────────────────────────
@@ -220,9 +286,7 @@ async function init(): Promise<void> {
   // Server info
   const info = await bai.getServerInfo()
   serverUrl.textContent = info.url
-  serverStatus.innerHTML = info.running
-    ? '<span class="dot dot-green"></span><span>Running</span>'
-    : '<span class="dot dot-gray"></span><span>Stopped</span>'
+  updateConnection(info.connected)
 
   // Settings
   const settings = await bai.getSettings()

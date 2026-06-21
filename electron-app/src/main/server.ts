@@ -1,10 +1,27 @@
 import http from 'node:http'
 import { registry } from './services/registry'
+import { loadSettings } from './settings'
 
 const PORT = 3939
 const MAX_BODY = 10240
+const PING_TIMEOUT = 15000  // 15 秒未 ping 视为断开
 
 let server: http.Server | null = null
+
+// ── 连接状态 ─────────────────────────────────────────────
+
+let _lastPing = 0
+
+export function getLastPing(): number { return _lastPing }
+export function isConnected(): boolean {
+  return _lastPing > 0 && (Date.now() - _lastPing) < PING_TIMEOUT
+}
+
+/** 通知渲染进程（由 main/index.ts 设置） */
+let _notifyRenderer: ((event: string, data: any) => void) | null = null
+export function setNotifyRenderer(fn: (event: string, data: any) => void): void {
+  _notifyRenderer = fn
+}
 
 /**
  * 读取请求 body（JSON）
@@ -47,9 +64,52 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
 
   const url = new URL(req.url || '/', `http://127.0.0.1:${PORT}`)
 
-  // 全局路由: GET /status — 返回所有服务状态
+  // GET /health — 健康检查（始终允许，返回 master 状态）
+  if (req.method === 'GET' && url.pathname === '/health') {
+    const s = loadSettings()
+    json(res, 200, {
+      status: 'ok',
+      port: PORT,
+      timeout: 60000,
+      masterSwitch: s.masterSwitch,
+      connected: isConnected(),
+    })
+    return
+  }
+
+  // GET /state — 完整状态（扩展轮询用）
+  if (req.method === 'GET' && url.pathname === '/state') {
+    const s = loadSettings()
+    json(res, 200, {
+      masterSwitch: s.masterSwitch,
+      connected: isConnected(),
+      services: registry.getStatuses(),
+    })
+    return
+  }
+
+  // POST /ping — 扩展心跳
+  if (req.method === 'POST' && url.pathname === '/ping') {
+    const wasConnected = isConnected()
+    _lastPing = Date.now()
+    if (!wasConnected) {
+      console.log('[Server] Extension connected')
+      _notifyRenderer?.('bai:ext-connected', true)
+    }
+    json(res, 200, { ok: true })
+    return
+  }
+
+  // GET /status — 服务状态
   if (req.method === 'GET' && url.pathname === '/status') {
     json(res, 200, { services: registry.getStatuses() })
+    return
+  }
+
+  // ── 总开关检查：关闭时拒绝所有其他请求 ──
+  const s = loadSettings()
+  if (!s.masterSwitch) {
+    json(res, 503, { error: 'BAI Desktop is disabled (master switch off)' })
     return
   }
 

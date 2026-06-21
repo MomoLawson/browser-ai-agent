@@ -8,11 +8,13 @@ import path from 'node:path'
 export interface AppSettings {
   browser: 'chrome' | 'edge'
   language: 'auto' | 'zh-CN' | 'en-US'
+  masterSwitch: boolean
 }
 
 const defaults: AppSettings = {
   browser: 'chrome',
   language: 'auto',
+  masterSwitch: true,
 }
 
 let _settings: AppSettings | null = null

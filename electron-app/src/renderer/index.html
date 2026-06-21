@@ -21,14 +21,28 @@
   <!-- Server info -->
   <div class="server-info">
     <div class="server-url" id="server-url">http://127.0.0.1:3939</div>
-    <div class="server-status" id="server-status">
-      <span class="dot dot-green"></span>
-      <span>Running</span>
+    <div class="server-right">
+      <div class="connection-status" id="connection-status">
+        <span class="dot dot-gray" id="conn-dot"></span>
+        <span id="conn-text" data-i18n="disconnected">Disconnected</span>
+      </div>
     </div>
   </div>
 
   <!-- ══ Main View (default) ══ -->
   <div id="view-main" class="view">
+    <!-- Master switch -->
+    <div class="master-bar">
+      <div class="master-left">
+        <span class="master-icon">⏻</span>
+        <span class="master-label" data-i18n="master_switch">Master Switch</span>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="master-toggle" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
     <!-- Services -->
     <div class="section-header" data-i18n="services">Services</div>
     <div id="services-list" class="services-list"></div>
@@ -62,11 +76,18 @@
           <option value="en-US">English</option>
         </select>
       </div>
-      <button class="btn-install" id="btn-install">
-        <span class="btn-install-icon">🧩</span>
-        <span data-i18n="install_ext">Install Extension</span>
-      </button>
+      <div class="install-row">
+        <button class="btn-install" id="btn-install">
+          <span class="btn-install-icon">🧩</span>
+          <span data-i18n="install_ext">Install Extension</span>
+        </button>
+        <button class="btn-install btn-install-userscript" id="btn-install-userscript">
+          <span class="btn-install-icon">📜</span>
+          <span data-i18n="install_script">Install Userscript</span>
+        </button>
+      </div>
       <div class="install-hint" id="install-hint"></div>
+      <button class="btn-quit" id="btn-quit" data-i18n="quit">Quit BAI Desktop</button>
     </div>
   </div>
 

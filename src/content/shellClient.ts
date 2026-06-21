@@ -22,6 +22,38 @@ export interface ShellHealth {
 
 const DEFAULT_URL = 'http://127.0.0.1:3939'
 
+/** 向 Desktop 发送心跳（扩展调用，保持连接状态） */
+export async function pingServer(baseUrl?: string): Promise<boolean> {
+  const url = (baseUrl || DEFAULT_URL).replace(/\/+$/, '')
+  try {
+    const resp = await fetch(`${url}/ping`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(3000),
+    })
+    return resp.ok
+  } catch {
+    return false
+  }
+}
+
+/** 获取 Desktop 完整状态（master switch + connection） */
+export async function getServerState(baseUrl?: string): Promise<{
+  masterSwitch: boolean
+  connected: boolean
+  services: any[]
+} | null> {
+  const url = (baseUrl || DEFAULT_URL).replace(/\/+$/, '')
+  try {
+    const resp = await fetch(`${url}/state`, {
+      signal: AbortSignal.timeout(3000),
+    })
+    if (!resp.ok) return null
+    return await resp.json()
+  } catch {
+    return null
+  }
+}
+
 /** 检查 Shell Server 是否在线 */
 export async function checkShellServer(baseUrl?: string): Promise<ShellHealth | null> {
   const url = (baseUrl || DEFAULT_URL).replace(/\/+$/, '')

@@ -83,10 +83,16 @@ body {
   color: #7c7cff;
 }
 
-.server-status {
+.server-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11px;
   color: #888;
 }
@@ -130,6 +136,45 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* ── Master switch bar ──────────────────────────────────── */
+
+.master-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  margin: 8px 12px 0;
+  background: #1e1e38;
+  border-radius: 8px;
+  border: 1px solid #2a2a4a;
+  flex-shrink: 0;
+}
+
+.master-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.master-icon {
+  font-size: 16px;
+  color: #4ade80;
+}
+
+.master-bar.off .master-icon {
+  color: #555;
+}
+
+.master-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.master-bar.off .master-label {
+  color: #666;
 }
 
 /* ── Services list ──────────────────────────────────────── */
@@ -226,6 +271,46 @@ body {
 
 .install-hint.error {
   color: #f87171;
+}
+
+.install-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.install-row .btn-install {
+  flex: 1;
+  margin-top: 0;
+}
+
+.btn-install-userscript {
+  background: linear-gradient(135deg, #3a3a5a, #2a2a4a) !important;
+  color: #c084fc !important;
+  border-color: #4a4a6a !important;
+}
+
+.btn-install-userscript:hover {
+  background: linear-gradient(135deg, #4a4a6a, #3a3a5a) !important;
+}
+
+.btn-quit {
+  -webkit-app-region: no-drag;
+  width: 100%;
+  margin-top: 16px;
+  padding: 10px 12px;
+  background: #2a1a1a;
+  color: #f87171;
+  border: 1px solid #4a2a2a;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-quit:hover {
+  background: #3a2020;
 }
 
 .services-list {

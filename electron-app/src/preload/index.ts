@@ -22,20 +22,39 @@ contextBridge.exposeInMainWorld('bai', {
     ipcRenderer.invoke('bai:toggle-service', name),
 
   /** 获取 server 信息 */
-  getServerInfo: (): Promise<{ url: string; running: boolean }> =>
+  getServerInfo: (): Promise<{ url: string; running: boolean; connected: boolean }> =>
     ipcRenderer.invoke('bai:get-server-info'),
 
   /** 获取设置 */
-  getSettings: (): Promise<{ browser: string; language: string }> =>
+  getSettings: (): Promise<{ browser: string; language: string; masterSwitch: boolean }> =>
     ipcRenderer.invoke('bai:get-settings'),
 
   /** 保存设置 */
-  saveSettings: (patch: { browser?: string; language?: string }): Promise<{ browser: string; language: string }> =>
+  saveSettings: (patch: { browser?: string; language?: string; masterSwitch?: boolean }): Promise<any> =>
     ipcRenderer.invoke('bai:save-settings', patch),
+
+  /** 切换总开关 */
+  toggleMaster: (): Promise<{ masterSwitch: boolean }> =>
+    ipcRenderer.invoke('bai:toggle-master'),
+
+  /** 获取完整状态 */
+  getState: (): Promise<{ masterSwitch: boolean; connected: boolean }> =>
+    ipcRenderer.invoke('bai:get-state'),
 
   /** 安装扩展：打开选中的浏览器并加载扩展 */
   installExtension: (browser: string): Promise<{ success: boolean; extPath: string }> =>
     ipcRenderer.invoke('bai:install-extension', browser),
+
+  /** 退出应用 */
+  quit: (): Promise<void> =>
+    ipcRenderer.invoke('bai:quit'),
+
+  /** 监听扩展连接状态变化 */
+  onExtConnected: (callback: (connected: boolean) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, connected: boolean) => callback(connected)
+    ipcRenderer.on('bai:ext-connected', handler)
+    return () => ipcRenderer.removeListener('bai:ext-connected', handler)
+  },
 
   /** 监听日志 */
   onLog: (callback: (message: string) => void) => {
